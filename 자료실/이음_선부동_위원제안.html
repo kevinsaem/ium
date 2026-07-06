@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이음 · 선부3동 지역사회보장협의체 제안</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#27332D;
+    --ink-2:#566159;
+    --ink-3:#8A938C;
+    --tint:#EAEDE9;
+    --tint-2:#DCE1DC;
+    --line:#E0E2DC;
+    --paper:#F5F3EC;
+    --surface:#FBFAF4;
+    --accent:#27332D;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Pretendard',system-ui,sans-serif;
+    color:var(--ink);background:#1a1d1b;
+    letter-spacing:-.01em;overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  .serif{font-family:'Noto Serif KR',serif;letter-spacing:-.02em}
+
+  /* 슬라이드 스테이지 (16:9) */
+  .stage{
+    position:fixed;inset:0;display:grid;place-items:center;
+  }
+  .slide{
+    position:absolute;
+    width:min(96vw, calc(96vh * 16 / 9));
+    aspect-ratio:16/9;
+    background:var(--paper);
+    box-shadow:0 40px 100px -30px rgba(0,0,0,.6);
+    overflow:hidden;
+    opacity:0;pointer-events:none;
+    transition:opacity .5s ease;
+    display:grid;
+  }
+  .slide.on{opacity:1;pointer-events:auto}
+
+  /* 공용 요소 */
+  .brand{position:absolute;top:3.6vh;left:3.6vh;display:flex;align-items:baseline;gap:.6em;
+    font-size:1.4vh;font-weight:800;letter-spacing:.32em;color:var(--ink)}
+  .brand b{font-weight:400;color:var(--ink-3)}
+  .pageno{position:absolute;bottom:3.6vh;right:4vh;
+    font-size:1.2vh;font-weight:700;letter-spacing:.3em;color:var(--ink-3)}
+  .foot{position:absolute;bottom:3.6vh;left:4vh;
+    font-size:1.2vh;font-weight:600;letter-spacing:.2em;color:var(--ink-3);text-transform:uppercase}
+  .kicker{font-size:1.5vh;font-weight:800;letter-spacing:.3em;color:var(--ink-2);
+    text-transform:uppercase}
+  .rule{width:5vh;height:1px;background:var(--ink);display:block}
+
+  /* ============================================================ */
+  /* 슬라이드 1 — 표지 */
+  /* ============================================================ */
+  .s1{
+    grid-template-columns:1.15fr 1fr;
+    background:var(--paper);
+  }
+  .s1 .left{padding:8vh 6vh;display:flex;flex-direction:column;justify-content:space-between}
+  .s1 .kicker{margin-bottom:3vh}
+  .s1 h1{font-family:'Noto Serif KR',serif;font-weight:600;
+    font-size:9vh;line-height:1.05;letter-spacing:-.04em;color:var(--ink)}
+  .s1 h1 em{font-style:normal;color:var(--ink-3);font-weight:400}
+  .s1 h1 .han{display:block;font-size:2.4vh;color:var(--ink-3);letter-spacing:.5em;
+    font-weight:400;margin-top:2vh}
+  .s1 .lede{margin-top:4vh;font-size:2.1vh;line-height:1.65;color:var(--ink-2);
+    max-width:44ch;font-weight:500}
+  .s1 .meta{display:flex;gap:2.4vh;align-items:center;font-size:1.4vh;
+    color:var(--ink-2);font-weight:600;letter-spacing:.06em}
+  .s1 .meta span{color:var(--ink-3)}
+  .s1 .right{background:var(--ink);color:var(--paper);position:relative;overflow:hidden;
+    display:flex;align-items:flex-end;padding:6vh}
+  .s1 .right .stamp{position:absolute;top:6vh;right:6vh;
+    width:12vh;height:12vh;border:1px solid rgba(245,243,236,.35);border-radius:999px;
+    display:grid;place-items:center;text-align:center;
+    font-size:1.1vh;letter-spacing:.3em;line-height:1.5;color:rgba(245,243,236,.7);
+    transform:rotate(-8deg)}
+  .s1 .right .stamp b{display:block;font-size:1.6vh;letter-spacing:.05em;
+    color:rgba(245,243,236,.95);margin-top:.3em}
+  .s1 .right blockquote{font-family:'Noto Serif KR',serif;font-weight:500;
+    font-size:3.2vh;line-height:1.5;letter-spacing:-.02em;color:var(--paper)}
+  .s1 .right blockquote::before{content:"“";display:block;font-size:8vh;
+    line-height:.5;color:rgba(245,243,236,.4);margin-bottom:3vh;font-weight:400}
+  .s1 .right cite{display:block;margin-top:3vh;font-style:normal;
+    font-size:1.3vh;letter-spacing:.3em;color:rgba(245,243,236,.6);
+    font-family:'Pretendard',sans-serif;font-weight:700}
+
+  /* ============================================================ */
+  /* 슬라이드 2 — 우리가 매일 마주하는 벽 */
+  /* ============================================================ */
+  .s2{grid-template-rows:auto 1fr;padding:8vh 6vh 8vh}
+  .s2 header{max-width:70%}
+  .s2 .kicker{margin-bottom:2vh}
+  .s2 h2{font-family:'Noto Serif KR',serif;font-weight:600;
+    font-size:6.4vh;line-height:1.1;letter-spacing:-.03em}
+  .s2 h2 em{font-style:normal;color:var(--ink-3);font-weight:400}
+  .s2 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3vh;margin-top:6vh;
+    align-items:stretch}
+  .s2 .card{background:var(--surface);border:1px solid var(--line);
+    padding:4vh 3.6vh;display:flex;flex-direction:column;gap:2.4vh;position:relative}
+  .s2 .card .num{font-family:'Noto Serif KR',serif;font-size:2.4vh;
+    font-weight:400;color:var(--ink-3);letter-spacing:.1em}
+  .s2 .card h3{font-family:'Noto Serif KR',serif;font-weight:600;
+    font-size:2.8vh;line-height:1.35;letter-spacing:-.02em;color:var(--ink)}
+  .s2 .card p{font-size:1.7vh;line-height:1.7;color:var(--ink-2);font-weight:500}
+  .s2 .card .quote{margin-top:auto;font-size:1.5vh;line-height:1.6;color:var(--ink-3);
+    font-style:italic;padding-top:2vh;border-top:1px solid var(--line)}
+
+  /* ============================================================ */
+  /* 슬라이드 3 — 이음이 하는 일 */
+  /* ============================================================ */
+  .s3{grid-template-rows:auto 1fr;padding:8vh 6vh 8vh}
+  .s3 header{max-width:70%}
+  .s3 .kicker{margin-bottom:2vh}
+  .s3 h2{font-family:'Noto Serif KR',serif;font-weight:600;
+    font-size:6.4vh;line-height:1.1;letter-spacing:-.03em}
+  .s3 h2 em{font-style:normal;color:var(--ink-3);font-weight:400}
+  .s3 .flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;
+    gap:2.4vh;align-items:center;margin-top:8vh}
+  .s3 .step{background:var(--surface);border:1px solid var(--line);
+    padding:4vh 3vh;text-align:center;height:100%;display:flex;flex-direction:column;
+    justify-content:center;gap:1.8vh;min-height:32vh}
+  .s3 .step .icon{width:8vh;height:8vh;margin:0 auto 1vh;border:1.5px solid var(--ink);
+    border-radius:999px;display:grid;place-items:center;color:var(--ink)}
+  .s3 .step .icon svg{width:3.6vh;height:3.6vh;stroke:currentColor;fill:none;stroke-width:1.4}
+  .s3 .step .stepno{font-size:1.2vh;font-weight:800;letter-spacing:.35em;color:var(--ink-3)}
+  .s3 .step h3{font-family:'Noto Serif KR',serif;font-weight:600;
+    font-size:2.8vh;line-height:1.3;letter-spacing:-.02em}
+  .s3 .step p{font-size:1.55vh;line-height:1.65;color:var(--ink-2);font-weight:500;
+    max-width:22ch;margin:0 auto}
+  .s3 .arrow{color:var(--ink-3);font-size:3.6vh;font-weight:200;line-height:1}
+  .s3 .note{margin-top:5vh;padding-top:3vh;border-top:1px solid var(--line);
+    display:flex;gap:2vh;align-items:center;color:var(--ink-2);font-size:1.6vh;
+    font-weight:600;letter-spacing:.02em}
+  .s3 .note b{color:var(--ink);font-weight:700}
+  .s3 .note .dot{width:.7vh;height:.7vh;background:var(--ink);border-radius:999px;flex:none}
+
+  /* ============================================================ */
+  /* 슬라이드 4 — 선부3동지사협위원의 하루가 달라진다 */
+  /* ============================================================ */
+  .s4{grid-template-rows:auto 1fr;padding:8vh 6vh 8vh}
+  .s4 header{max-width:80%}
+  .s4 .kicker{margin-bottom:2vh}
+  .s4 h2{font-family:'Noto Serif KR',serif;font-weight:600;
+    font-size:6.4vh;line-height:1.1;letter-spacing:-.03em}
+  .s4 h2 em{font-style:normal;color:var(--ink-3);font-weight:400}
+  .s4 .split{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:6vh;
+    border:1px solid var(--line);background:var(--surface)}
+  .s4 .col{padding:4vh 4.5vh;display:flex;flex-direction:column;gap:2.4vh}
+  .s4 .col.before{background:var(--surface)}
+  .s4 .col.after{background:var(--ink);color:var(--paper)}
+  .s4 .col .tag{font-size:1.2vh;font-weight:800;letter-spacing:.35em;
+    padding:.6em 1.2em;border:1px solid var(--ink-3);color:var(--ink-3);
+    align-self:flex-start;border-radius:999px}
+  .s4 .col.after .tag{border-color:rgba(245,243,236,.4);color:rgba(245,243,236,.85)}
+  .s4 .col h3{font-family:'Noto Serif KR',serif;font-weight:500;
+    font-size:2.6vh;line-height:1.45;letter-spacing:-.02em}
+  .s4 .col ul{list-style:none;display:flex;flex-direction:column;gap:1.8vh;margin-top:1vh}
+  .s4 .col li{font-size:1.7vh;line-height:1.6;color:var(--ink-2);font-weight:500;
+    padding-left:2.4vh;position:relative}
+  .s4 .col li::before{content:"";position:absolute;left:0;top:.9em;
+    width:1.4vh;height:1px;background:var(--ink-3)}
+  .s4 .col.after li{color:rgba(245,243,236,.88)}
+  .s4 .col.after li::before{background:rgba(245,243,236,.6)}
+  .s4 .col .kick{font-size:1.4vh;font-weight:800;letter-spacing:.15em;
+    color:var(--ink);margin-top:auto;padding-top:2vh;border-top:1px solid var(--line)}
+  .s4 .col.after .kick{color:var(--paper);border-color:rgba(245,243,236,.2)}
+
+  /* ============================================================ */
+  /* 슬라이드 5 — 함께 시작해요 */
+  /* ============================================================ */
+  .s5{
+    grid-template-columns:1fr 1fr;
+    background:var(--paper);
+  }
+  .s5 .left{padding:8vh 6vh;display:flex;flex-direction:column;justify-content:space-between;
+    background:var(--ink);color:var(--paper)}
+  .s5 .left .kicker{color:rgba(245,243,236,.6)}
+  .s5 .left h2{font-family:'Noto Serif KR',serif;font-weight:600;
+    font-size:7.2vh;line-height:1.1;letter-spacing:-.03em;margin-top:3vh}
+  .s5 .left h2 em{font-style:normal;color:rgba(245,243,236,.55);font-weight:400}
+  .s5 .left .lede{margin-top:3vh;font-size:1.9vh;line-height:1.7;
+    color:rgba(245,243,236,.8);max-width:38ch;font-weight:500}
+  .s5 .left .sign{font-size:1.3vh;letter-spacing:.3em;color:rgba(245,243,236,.55);
+    font-weight:700}
+  .s5 .right{padding:8vh 6vh;display:flex;flex-direction:column;gap:3.6vh;
+    justify-content:center}
+  .s5 .right .lbl{font-size:1.2vh;font-weight:800;letter-spacing:.35em;color:var(--ink-3)}
+  .s5 .right h3{font-family:'Noto Serif KR',serif;font-weight:600;
+    font-size:3.4vh;line-height:1.3;letter-spacing:-.02em;margin-top:.6vh}
+  .s5 .plan{display:flex;flex-direction:column;gap:1.6vh}
+  .s5 .plan .row{display:grid;grid-template-columns:5vh 1fr;gap:2vh;
+    padding-bottom:1.6vh;border-bottom:1px solid var(--line);align-items:baseline}
+  .s5 .plan .row:last-child{border-bottom:0;padding-bottom:0}
+  .s5 .plan .n{font-family:'Noto Serif KR',serif;font-size:2.8vh;
+    font-weight:500;color:var(--ink)}
+  .s5 .plan .txt h4{font-size:1.85vh;font-weight:700;letter-spacing:-.01em;line-height:1.4}
+  .s5 .plan .txt h4 .when{font-weight:500;color:var(--ink-3);
+    font-size:1.4vh;letter-spacing:.03em;margin-left:.2em}
+  .s5 .plan .txt p{font-size:1.4vh;color:var(--ink-3);margin-top:.4vh;line-height:1.55;
+    font-weight:500}
+  .s5 .proposer{margin-top:2vh;padding:2.4vh 3vh;background:var(--surface);
+    border:1px solid var(--line);display:flex;align-items:center;gap:2.4vh}
+  .s5 .proposer .lbl{margin:0;flex:none}
+  .s5 .proposer .who{display:flex;align-items:baseline;gap:1.2vh;flex-wrap:wrap;flex:1;
+    padding-left:2.4vh;border-left:1px solid var(--line)}
+  .s5 .proposer .name{font-family:'Noto Serif KR',serif;font-size:2.2vh;
+    font-weight:600;letter-spacing:-.02em;color:var(--ink)}
+  .s5 .proposer .name .post{font-family:'Pretendard',sans-serif;font-size:1.3vh;
+    color:var(--ink-3);font-weight:700;margin-left:.4em;letter-spacing:.1em}
+  .s5 .proposer .affil{font-size:1.4vh;color:var(--ink-2);font-weight:600;
+    letter-spacing:-.01em}
+
+  /* ============================================================ */
+  /* 슬라이드 6 — 실제 앱 화면 + 긍정 클로징 */
+  /* ============================================================ */
+  .s6{grid-template-rows:auto auto 1fr;padding:5vh 6vh 0}
+  .s6 header{text-align:center;max-width:80%;margin:0 auto}
+  .s6 .kicker{margin-bottom:1.4vh}
+  .s6 h2{font-family:'Noto Serif KR',serif;font-weight:600;
+    font-size:4.4vh;line-height:1.2;letter-spacing:-.03em}
+  .s6 h2 em{font-style:normal;color:var(--ink-3);font-weight:400}
+  .s6 .phones{display:grid;grid-template-columns:repeat(3,1fr);gap:3vh;
+    align-items:start;margin-top:2.6vh;padding:0 4vh}
+  .s6 .phone-slot{display:flex;flex-direction:column;align-items:center;gap:1.6vh}
+  .s6 .phone-frame{
+    width:100%;max-width:19vh;aspect-ratio:380/725;
+    border-radius:2.4vh;overflow:hidden;position:relative;
+    background:var(--surface);
+    box-shadow:0 2vh 4vh -1vh rgba(20,28,24,.25), 0 0 0 .5vh #1a1d1b;
+  }
+  .s6 .phone-frame::before{
+    content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
+    width:26%;height:1.4vh;background:#1a1d1b;
+    border-radius:0 0 1vh 1vh;z-index:5;
+  }
+  .s6 .phone-frame img{width:100%;height:100%;object-fit:cover;display:block}
+  .s6 .phone-label{text-align:center}
+  .s6 .phone-label .tag{font-size:1vh;font-weight:800;letter-spacing:.32em;
+    color:var(--ink-3);display:block;margin-bottom:.5vh}
+  .s6 .phone-label h3{font-family:'Noto Serif KR',serif;font-weight:600;
+    font-size:1.9vh;line-height:1.3;letter-spacing:-.02em;color:var(--ink)}
+  .s6 .phone-label p{font-size:1.25vh;line-height:1.5;color:var(--ink-2);
+    font-weight:500;margin-top:.6vh;max-width:22ch}
+  .s6 .closing{background:var(--ink);color:var(--paper);
+    margin:3vh -6vh 0;padding:3.4vh 8vh;
+    display:grid;grid-template-columns:auto 1fr;gap:3.6vh;align-items:center;
+    align-self:end}
+  .s6 .closing .seal{width:9vh;height:9vh;border:1px solid rgba(245,243,236,.35);
+    border-radius:999px;display:grid;place-items:center;text-align:center;
+    font-family:'Noto Serif KR',serif;font-size:1.9vh;letter-spacing:.05em;
+    color:rgba(245,243,236,.95);line-height:1.3;flex:none}
+  .s6 .closing .seal small{display:block;font-family:'Pretendard',sans-serif;
+    font-size:.85vh;letter-spacing:.3em;color:rgba(245,243,236,.55);margin-top:.5vh;font-weight:700}
+  .s6 .closing .msg{font-family:'Noto Serif KR',serif;font-weight:500;
+    font-size:2.1vh;line-height:1.55;letter-spacing:-.02em;color:var(--paper)}
+  .s6 .closing .msg em{font-style:normal;color:#fff;
+    border-bottom:1px solid rgba(245,243,236,.5);padding-bottom:.05em}
+  .s6 .closing .sign{font-family:'Pretendard',sans-serif;font-size:1.1vh;
+    letter-spacing:.3em;color:rgba(245,243,236,.55);font-weight:700;margin-top:1.2vh;display:block}
+
+  /* ============================================================ */
+  /* 컨트롤 */
+  /* ============================================================ */
+  .nav{position:fixed;bottom:2vh;left:50%;transform:translateX(-50%);
+    display:flex;gap:.8vh;align-items:center;background:rgba(20,25,22,.7);
+    padding:1.2vh 2vh;border-radius:999px;backdrop-filter:blur(8px);z-index:100}
+  .nav button{background:transparent;border:0;color:rgba(245,243,236,.7);
+    font-family:inherit;font-size:1.3vh;font-weight:700;letter-spacing:.15em;
+    padding:.4em .9em;cursor:pointer;transition:.2s;border-radius:999px}
+  .nav button:hover{color:var(--paper)}
+  .nav .dots{display:flex;gap:.7vh;padding:0 1.4vh}
+  .nav .dots i{width:.9vh;height:.9vh;border-radius:999px;background:rgba(245,243,236,.25);
+    cursor:pointer;transition:.2s}
+  .nav .dots i.on{background:var(--paper);transform:scale(1.25)}
+  .hint{position:fixed;top:2vh;right:2vh;color:rgba(245,243,236,.5);
+    font-size:1.1vh;letter-spacing:.2em;font-weight:600;z-index:100}
+
+  /* 인쇄 → PDF */
+  @media print{
+    @page{size:16in 9in;margin:0}
+    body{background:#fff}
+    .stage{position:static;display:block}
+    .slide{position:relative;opacity:1!important;pointer-events:auto!important;
+      width:16in;height:9in;box-shadow:none;page-break-after:always;transform:none!important}
+    .nav,.hint{display:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="hint">← → 방향키 · 클릭으로 넘기기</div>
+
+<div class="stage" id="stage">
+
+  <!-- ================ SLIDE 1 : 표지 ================ -->
+  <section class="slide s1 on" data-i="0">
+    <div class="left">
+      <div>
+        <div class="brand">IEUM <b>· 이음</b></div>
+        <div class="kicker" style="margin-top:14vh">선부3동지사협위원 제안</div>
+        <h1>
+          동네의 선의를,<br>
+          <em>조용히</em> 닿게 하는 일<span class="han">理 音</span>
+        </h1>
+        <p class="lede">
+          도움이 필요한 이웃이 스스로 손을 들지 않아도,<br>
+          선부3동지사협위원의 발굴이 헛되지 않도록.<br>
+          이음은 그 사이에 놓는 다리입니다.
+        </p>
+      </div>
+      <div class="meta">
+        <span>2026</span>
+        <span>·</span>
+        <span>선부3동 파일럿 제안본</span>
+        <span>·</span>
+        <span>v1</span>
+      </div>
+    </div>
+    <div class="right">
+      <div class="stamp">FOR<b>선부3동</b>협의체</div>
+      <blockquote>
+        당근마켓이 사고파는 곳이라면,<br>
+        이음은 <em style="font-style:normal;color:#fff;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em">나누고 닿게 하는 곳</em>.<br>
+        그리고 그 사이를<br>
+        <em style="font-style:normal;color:#fff">협의체가 지켜주는 곳</em>입니다.
+        <cite>— 이음(理音) 한 줄 컨셉</cite>
+      </blockquote>
+    </div>
+    <div class="foot">IEUM · Sunbu-dong</div>
+    <div class="pageno">01 / 06</div>
+  </section>
+
+  <!-- ================ SLIDE 2 : 매일 마주하는 벽 ================ -->
+  <section class="slide s2" data-i="1">
+    <header>
+      <div class="kicker">선부3동지사협위원의 자리에서 보이는 풍경</div>
+      <h2 style="margin-top:2vh">
+        우리가 매일 <em>마주하는</em><br>
+        세 개의 벽.
+      </h2>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <div class="num">— 01</div>
+        <h3>행정은<br>먼저 알 수 없다</h3>
+        <p>
+          갑작스러운 실직, 사고, 병환.
+          위기 가정은 서류가 아니라 골목에 있습니다.
+          결국 처음 알아차리는 사람은 언제나 선부3동지사협위원입니다.
+        </p>
+        <div class="quote">— 발굴은 선부3동지사협위원의 몫이지만,<br>혼자 짊어지는 무게입니다.</div>
+      </div>
+
+      <div class="card">
+        <div class="num">— 02</div>
+        <h3>정작 당사자는<br>말을 꺼내지 못한다</h3>
+        <p>
+          창피함과 자존심.
+          "도와주세요"는 세상에서 가장 어려운 말입니다.
+          도움이 필요한 사람일수록 손을 들지 못합니다.
+        </p>
+        <div class="quote">— 도움이 시혜처럼 느껴지지 않게<br>연결하는 일이 필요합니다.</div>
+      </div>
+
+      <div class="card">
+        <div class="num">— 03</div>
+        <h3>선의는 있지만,<br>닿지 못한다</h3>
+        <p>
+          동네 슈퍼, 식당, 미용실, 철물점.
+          도와주고 싶은 마음은 이미 골목에 있는데,
+          누구에게 어떻게 전할지 아무도 모릅니다.
+        </p>
+        <div class="quote">— 닿지 못한 선의는<br>결국 흩어지고 맙니다.</div>
+      </div>
+    </div>
+
+    <div class="foot">IEUM · Sunbu-dong</div>
+    <div class="pageno">02 / 06</div>
+  </section>
+
+  <!-- ================ SLIDE 3 : 이음이 하는 일 ================ -->
+  <section class="slide s3" data-i="2">
+    <header>
+      <div class="kicker">그래서 이음이 하는 일</div>
+      <h2 style="margin-top:2vh">
+        <em>발굴</em>은 선부3동지사협위원이,<br>
+        <em>선의</em>는 이웃이, <em>사이</em>는 이음이.
+      </h2>
+    </header>
+
+    <div class="flow">
+      <div class="step">
+        <div class="icon">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
+        </div>
+        <div class="stepno">STEP 01</div>
+        <h3>발굴하고<br>비식별로 담는다</h3>
+        <p>선부3동지사협위원이 상담으로 찾은 필요를 '선부3동 A가정'처럼 이름 없이 등록합니다.</p>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="step">
+        <div class="icon">
+          <svg viewBox="0 0 24 24"><path d="M4 12h6M14 12h6M10 8l4 4-4 4M14 8l-4 4 4 4"/></svg>
+        </div>
+        <div class="stepno">STEP 02</div>
+        <h3>동네의 선의와<br>필요를 잇는다</h3>
+        <p>인증 나눔가게가 미리 내놓은 물품·서비스에서 선부3동지사협위원이 딱 맞는 것을 골라 매칭합니다.</p>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="step">
+        <div class="icon">
+          <svg viewBox="0 0 24 24"><path d="M20 8v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8"/><path d="M2 8l10-5 10 5"/><path d="M9 20v-6h6v6"/></svg>
+        </div>
+        <div class="stepno">STEP 03</div>
+        <h3>당사자는 등장 없이<br>전달만 받는다</h3>
+        <p>당사자는 앱에 등장하지 않습니다. 선부3동지사협위원과 후원자가 조용히 전달합니다.</p>
+      </div>
+    </div>
+
+    <div class="note">
+      <span class="dot"></span>
+      <span><b>대상자는 앱에 계정조차 없습니다.</b> 선부3동지사협위원이 대신 입력하고, 전달도 선부3동지사협위원·후원자가 합니다. 창피함 없는 도움이 이음의 원칙입니다.</span>
+    </div>
+
+    <div class="foot">IEUM · Sunbu-dong</div>
+    <div class="pageno">03 / 06</div>
+  </section>
+
+  <!-- ================ SLIDE 4 : 선부3동지사협위원의 하루가 달라진다 ================ -->
+  <section class="slide s4" data-i="3">
+    <header>
+      <div class="kicker">선부3동지사협위원의 관점에서</div>
+      <h2 style="margin-top:2vh;font-size:5.4vh">
+        선부3동지사협위원의 하루가<br>
+        <em>이렇게</em> 달라집니다.
+      </h2>
+    </header>
+
+    <div class="split">
+      <div class="col before">
+        <span class="tag">BEFORE · 지금</span>
+        <h3>발굴은 했는데,<br>어디에 요청해야 할지 모른다.</h3>
+        <ul>
+          <li>가정을 찾아도 도움줄 곳을 개인 인맥으로 수소문</li>
+          <li>후원자에게 매번 새로 설명하고 부탁하는 감정 노동</li>
+          <li>월간 활동 보고서는 결국 손으로 다시 정리</li>
+          <li>당사자의 창피함까지 선부3동지사협위원이 짊어져야 하는 부담</li>
+        </ul>
+        <div class="kick">— 마음은 있는데, 매번 처음부터.</div>
+      </div>
+
+      <div class="col after">
+        <span class="tag">AFTER · 이음과 함께</span>
+        <h3>발굴만 하면,<br>연결은 이음이 돕습니다.</h3>
+        <ul>
+          <li>동네 인증 나눔가게 목록에서 필요를 골라 매칭</li>
+          <li>후원자에겐 기부금 영수증·봉사 실적이 자동으로</li>
+          <li>매칭 기록이 쌓여 <b>월간 보고서가 자동 생성</b></li>
+          <li>당사자 신원 노출 없이, 선부3동지사협위원이 안전하게 중개</li>
+        </ul>
+        <div class="kick">— 선부3동지사협위원의 시간을 진짜 사람에게.</div>
+      </div>
+    </div>
+
+    <div class="foot">IEUM · Sunbu-dong</div>
+    <div class="pageno">04 / 06</div>
+  </section>
+
+  <!-- ================ SLIDE 5 : 함께 시작해요 ================ -->
+  <section class="slide s5" data-i="4">
+    <div class="left">
+      <div>
+        <div class="kicker">선부3동에서 함께</div>
+        <h2>
+          첫 걸음은<br>
+          <em>작게,</em><br>
+          그러나 <em>확실히.</em>
+        </h2>
+        <p class="lede">
+          완성된 시스템을 강요하지 않습니다.<br>
+          선부3동지사협위원 여러분과 함께 다듬어 갈,<br>
+          작은 파일럿으로 시작하고자 합니다.
+        </p>
+      </div>
+      <div class="sign">
+        IEUM · SUNBU-DONG PILOT<br>
+        <span style="opacity:.5;letter-spacing:.2em;font-weight:500;margin-top:.6em;display:inline-block">2026</span>
+      </div>
+    </div>
+
+    <div class="right">
+      <div>
+        <div class="lbl">개발 확정 후 · 4개월 로드맵</div>
+        <h3>이렇게<br>진행합니다.</h3>
+      </div>
+
+      <div class="plan">
+        <div class="row">
+          <div class="n">00</div>
+          <div class="txt">
+            <h4>개발 확정 · 킥오프</h4>
+            <p>협의체와 요구사항 최종 조율 후 개발 착수</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="n">01</div>
+          <div class="txt">
+            <h4>1차 MVP 개발 <span class="when">· 1~2개월차</span></h4>
+            <p>후원자·위원·사무국 핵심 화면을 2개월 집중 개발</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="n">02</div>
+          <div class="txt">
+            <h4>1차 베타테스트 <span class="when">· 3개월차</span></h4>
+            <p>선부3동 지역사회보장협의체 위원 중심 실사용 검증</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="n">03</div>
+          <div class="txt">
+            <h4>실 가동 시작 <span class="when">· 4개월차</span></h4>
+            <p>인증 나눔가게 오픈 · 첫 정식 매칭 개시</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="proposer">
+        <div class="lbl">제안자</div>
+        <div class="who">
+          <div class="name">이관희 <span class="post">위원</span></div>
+          <div class="affil">Kevin샘 AI 코딩학원 원장</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot" style="color:rgba(245,243,236,.55)">IEUM · Sunbu-dong</div>
+    <div class="pageno">05 / 06</div>
+  </section>
+
+  <!-- ================ SLIDE 6 : 실제 앱 화면 + 긍정 클로징 ================ -->
+  <section class="slide s6" data-i="5">
+    <header>
+      <div class="kicker">그리고, 이렇게 만나게 됩니다</div>
+      <h2>
+        화면 하나하나에<br>
+        우리 <em>선부3동의 이야기</em>가 담깁니다.
+      </h2>
+    </header>
+
+    <div class="phones">
+      <div class="phone-slot">
+        <div class="phone-frame">
+          <img src="shots/screen_donor.png" alt="후원자 화면">
+        </div>
+        <div class="phone-label">
+          <span class="tag">ROLE · 01</span>
+          <h3>후원자</h3>
+          <p>동네 슈퍼·식당·미용실이<br>선의를 손쉽게 내놓습니다.</p>
+        </div>
+      </div>
+
+      <div class="phone-slot">
+        <div class="phone-frame">
+          <img src="shots/screen_member.png" alt="선부3동지사협위원 화면">
+        </div>
+        <div class="phone-label">
+          <span class="tag">ROLE · 02</span>
+          <h3>선부3동지사협위원</h3>
+          <p>발굴한 필요를 비식별로 담고<br>딱 맞는 나눔과 매칭합니다.</p>
+        </div>
+      </div>
+
+      <div class="phone-slot">
+        <div class="phone-frame">
+          <img src="shots/screen_office.png" alt="사무국 화면">
+        </div>
+        <div class="phone-label">
+          <span class="tag">ROLE · 03</span>
+          <h3>사무국</h3>
+          <p>인증 나눔가게와 선부3동지사협위원 활동이<br>한눈에 보이고 관리됩니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="closing">
+      <div class="seal">
+        선부3동<small>HAPPIER TOGETHER</small>
+      </div>
+      <div>
+        <div class="msg">
+          이음은 <em>시스템이 아니라 다리</em>입니다.<br>
+          이 작은 다리 위에서 선의와 필요가 만나고,<br>
+          우리 <em>선부3동은 조금씩 더 행복한 마을</em>이 되어 갑니다.
+        </div>
+        <span class="sign">— 다음 회의에서 여러분의 의견을 듣고, 함께 다듬어 가고 싶습니다.</span>
+      </div>
+    </div>
+
+    <div class="foot" style="color:rgba(245,243,236,.55)">IEUM · Sunbu-dong</div>
+    <div class="pageno" style="color:rgba(245,243,236,.7)">06 / 06</div>
+  </section>
+
+</div>
+
+<!-- 네비게이션 -->
+<div class="nav">
+  <button id="prev">◁ PREV</button>
+  <div class="dots" id="dots"></div>
+  <button id="next">NEXT ▷</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const dotsEl = document.getElementById('dots');
+  let cur = 0;
+
+  slides.forEach((_, i) => {
+    const d = document.createElement('i');
+    d.addEventListener('click', () => go(i));
+    dotsEl.appendChild(d);
+  });
+
+  function go(i){
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, idx) => s.classList.toggle('on', idx === cur));
+    dotsEl.querySelectorAll('i').forEach((d, idx) => d.classList.toggle('on', idx === cur));
+  }
+  go(0);
+
+  document.getElementById('prev').addEventListener('click', () => go(cur - 1));
+  document.getElementById('next').addEventListener('click', () => go(cur + 1));
+
+  document.addEventListener('keydown', e => {
+    if(e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') go(cur + 1);
+    if(e.key === 'ArrowLeft' || e.key === 'PageUp') go(cur - 1);
+    if(e.key === 'Home') go(0);
+    if(e.key === 'End') go(slides.length - 1);
+  });
+
+  // 슬라이드 배경 클릭으로 다음
+  document.getElementById('stage').addEventListener('click', e => {
+    if(e.target.closest('.nav') || e.target.closest('button') || e.target.closest('.dots')) return;
+    // 오른쪽 절반 클릭 → 다음, 왼쪽 절반 → 이전
+    const x = e.clientX / window.innerWidth;
+    if(x > .5) go(cur + 1); else go(cur - 1);
+  });
+</script>
+</body>
+</html>

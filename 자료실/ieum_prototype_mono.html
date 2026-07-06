@@ -1,0 +1,464 @@
+<!-- 이음(理音) — 단색 톤 리디자인 버전 -->
+<!-- 하나의 잉크그린 색을 명도 단계로만 변주, 모든 아이콘은 단색 라인 SVG -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이음 · mono</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.13.5/cdn.min.js"></script>
+<style>
+  :root{
+    /* 단일 잉크그린 색을 명도로만 변주 */
+    --ink:#27332D;        /* 가장 진한 톤 (primary) */
+    --ink-2:#566159;      /* 중간 톤 */
+    --ink-3:#8A938C;      /* 옅은 톤 (muted) */
+    --tint:#EAEDE9;       /* 아주 옅은 면 */
+    --tint-2:#DCE1DC;     /* 옅은 면 2 */
+    --line:#E0E2DC;       /* 헤어라인 */
+    --paper:#F5F3EC;      /* 배경 종이 */
+    --surface:#FBFAF4;    /* 카드 표면 */
+    --r:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{
+    font-family:'Pretendard',system-ui,sans-serif;color:var(--ink);
+    background:var(--paper);
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;
+    padding:30px 16px 50px;gap:18px;letter-spacing:-.01em;
+  }
+  .ic-svg{width:1em;height:1em;display:inline-block;vertical-align:-.13em}
+
+  .intro{max-width:380px;text-align:center}
+  .intro .mark{font-size:13px;font-weight:800;letter-spacing:.32em;color:var(--ink)}
+  .intro .mark b{font-weight:400;color:var(--ink-3)}
+  .intro p{font-size:12px;color:var(--ink-3);margin-top:7px;line-height:1.65;letter-spacing:0}
+
+  /* 역할 세그먼트 — 단색 */
+  .roleseg{display:flex;gap:2px;background:var(--surface);padding:4px;border-radius:999px;
+    border:1px solid var(--line)}
+  .roleseg button{border:0;background:transparent;font-family:inherit;font-weight:600;
+    font-size:12.5px;color:var(--ink-3);padding:9px 17px;border-radius:999px;cursor:pointer;
+    transition:.22s;letter-spacing:-.01em}
+  .roleseg button.on{background:var(--ink);color:var(--paper)}
+
+  /* 폰 프레임 — 무채에 가깝게 */
+  .phone{width:380px;max-width:94vw;height:762px;background:var(--paper);border-radius:40px;
+    box-shadow:0 28px 64px -22px rgba(20,28,24,.4),0 0 0 10px #1a1d1b,0 0 0 12px #34383440;
+    overflow:hidden;position:relative;display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:120px;height:24px;
+    background:#1a1d1b;border-radius:0 0 15px 15px;z-index:60}
+
+  /* 헤더 */
+  .hd{padding:34px 18px 13px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--line);position:relative;z-index:10}
+  .hd .loc{display:flex;align-items:center;gap:4px;font-weight:700;font-size:16px}
+  .hd .loc .ic-svg{font-size:14px;color:var(--ink-3)}
+  .hd .loc small{font-size:11px;color:var(--ink-3);font-weight:500;margin-left:4px}
+  .hd .bell{font-size:19px;color:var(--ink-2);cursor:pointer}
+  .rolechip{font-size:10px;font-weight:700;padding:4px 10px;border-radius:999px;letter-spacing:.04em;
+    border:1px solid var(--line);color:var(--ink-2);background:var(--surface)}
+
+  .body{flex:1;overflow-y:auto;padding:15px 16px}
+  .body::-webkit-scrollbar{width:0}
+
+  .sectit{font-size:11px;font-weight:700;color:var(--ink-3);margin:16px 2px 9px;
+    letter-spacing:.14em;text-transform:uppercase}
+  .sectit:first-child{margin-top:2px}
+
+  /* 카드 */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+    padding:13px;margin-bottom:9px;cursor:pointer;transition:.16s}
+  .card:active{background:var(--tint)}
+  .card.flat{cursor:default}
+  .row{display:flex;gap:12px;align-items:center}
+  .thumb{width:52px;height:52px;border-radius:13px;flex:none;display:grid;place-items:center;
+    background:var(--tint);color:var(--ink);font-size:23px;border:1px solid var(--line)}
+  .meta{flex:1;min-width:0}
+  .meta h3{font-size:14px;font-weight:600;line-height:1.35;letter-spacing:-.01em}
+  .meta .sub{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+  .meta .foot{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
+
+  /* 태그 — 색이 아니라 톤으로 구분 */
+  .tag{font-size:10px;font-weight:700;padding:3px 9px;border-radius:6px;letter-spacing:.02em}
+  .tag.line{border:1px solid var(--tint-2);color:var(--ink-2);background:transparent}
+  .tag.fill{background:var(--ink);color:var(--paper)}
+  .tag.soft{background:var(--tint);color:var(--ink-2)}
+  .verify{font-size:10.5px;color:var(--ink-2);font-weight:600;display:inline-flex;align-items:center;gap:4px}
+  .verify .ic-svg{font-size:12px}
+
+  /* 신뢰 배너 — 단일 진한 톤 */
+  .banner{background:var(--ink);color:var(--paper);border-radius:var(--r);padding:14px 15px;
+    margin-bottom:12px;display:flex;gap:12px;align-items:flex-start}
+  .banner .seal{width:36px;height:36px;border-radius:10px;border:1px solid rgba(245,243,236,.25);
+    display:grid;place-items:center;font-size:18px;flex:none;color:var(--paper)}
+  .banner b{font-size:13px;font-weight:700;letter-spacing:-.01em}
+  .banner p{font-size:11px;color:rgba(245,243,236,.72);margin-top:3px;line-height:1.5}
+
+  /* 통계 */
+  .stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:12px}
+  .stat{background:var(--surface);padding:14px 6px;text-align:center}
+  .stat b{display:block;font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-.02em}
+  .stat span{font-size:10px;color:var(--ink-3);font-weight:500;letter-spacing:.03em}
+
+  /* 매칭 */
+  .matchwrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:9px}
+  .matchrow{display:flex;align-items:stretch;gap:8px}
+  .mbox{flex:1;border:1px solid var(--line);border-radius:12px;padding:10px 11px;background:var(--paper)}
+  .mbox b{font-size:12.5px;display:block;margin-bottom:3px;font-weight:600}
+  .mbox small{color:var(--ink-3);font-size:10.5px}
+  .marrow{display:grid;place-items:center;color:var(--ink-3);font-size:16px}
+  .btn{width:100%;border:0;font-family:inherit;font-weight:700;font-size:13px;letter-spacing:-.01em;
+    padding:12px;border-radius:12px;background:var(--ink);color:var(--paper);cursor:pointer;margin-top:11px}
+  .btn:active{opacity:.85}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+
+  /* 폼 */
+  .field{margin-bottom:12px}
+  .field label{font-size:10.5px;font-weight:700;color:var(--ink-3);display:block;margin-bottom:6px;
+    letter-spacing:.1em;text-transform:uppercase}
+  .field .inp{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:11px 12px;
+    font-size:13px;color:var(--ink)}
+  .field .ph{color:var(--ink-3)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chips span{font-size:11.5px;font-weight:600;padding:8px 13px;border-radius:999px;
+    background:var(--surface);border:1px solid var(--line);color:var(--ink-3);letter-spacing:-.01em}
+  .chips span.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+  /* 증빙 */
+  .cert{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+    padding:15px;margin-bottom:9px;position:relative}
+  .cert .seal2{position:absolute;right:13px;top:13px;font-size:16px;color:var(--ink-3)}
+  .cert b{font-size:13.5px;font-weight:700}
+  .cert p{font-size:11.5px;color:var(--ink-3);margin-top:5px;line-height:1.55}
+
+  /* 디테일 오버레이 */
+  .overlay{position:absolute;inset:0;background:var(--paper);z-index:50;display:flex;flex-direction:column;
+    animation:slideup .25s ease}
+  @keyframes slideup{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .ovhd{padding:32px 16px 11px;display:flex;align-items:center;gap:11px;border-bottom:1px solid var(--line)}
+  .ovhd .back{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-size:17px;
+    background:var(--surface);border:1px solid var(--line);cursor:pointer;color:var(--ink-2)}
+  .ovhd b{font-size:14px;font-weight:700;letter-spacing:.02em}
+  .ovbody{flex:1;overflow-y:auto;padding:16px}
+  .ovbody::-webkit-scrollbar{width:0}
+  .hero{width:100%;height:140px;border-radius:var(--r);display:grid;place-items:center;font-size:48px;
+    background:var(--tint);color:var(--ink);margin-bottom:15px;border:1px solid var(--line)}
+  .deftit{font-size:18px;font-weight:700;line-height:1.35;letter-spacing:-.02em}
+  .defmeta{font-size:12px;color:var(--ink-3);margin-top:6px;line-height:1.6}
+  .divline{height:1px;background:var(--line);margin:15px 0}
+  .infoline{display:flex;justify-content:space-between;font-size:12.5px;padding:8px 0}
+  .infoline span:first-child{color:var(--ink-3);font-weight:500}
+  .infoline span:last-child{font-weight:600}
+
+  /* 하단 탭 */
+  .tabs{display:flex;border-top:1px solid var(--line);padding:9px 6px 13px;background:var(--surface)}
+  .tabs button{flex:1;border:0;background:transparent;font-family:inherit;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px;color:var(--ink-3)}
+  .tabs button.on{color:var(--ink)}
+  .tabs .ti{font-size:20px}
+  .tabs .tl{font-size:9.5px;font-weight:600;letter-spacing:.02em}
+
+  .legend{max-width:380px;font-size:11px;color:var(--ink-3);text-align:center;line-height:1.75;letter-spacing:0}
+  .legend b{color:var(--ink-2);font-weight:700}
+</style>
+
+<div class="intro">
+  <div class="mark">이음 <b>·</b> 理音</div>
+  <p>지역사회보장협의체 나눔 매칭.<br>역할을 바꿔가며 화면 구조를 둘러보세요.</p>
+</div>
+
+<div x-data="ieum()">
+  <div class="roleseg" style="margin:0 auto">
+    <button :class="role==='donor'&&'on'" @click="setRole('donor')">후원자</button>
+    <button :class="role==='member'&&'on'" @click="setRole('member')">협의체 위원</button>
+    <button :class="role==='office'&&'on'" @click="setRole('office')">사무국</button>
+  </div>
+
+  <div class="phone" style="margin-top:16px">
+    <div class="notch"></div>
+
+    <!-- 헤더 -->
+    <div class="hd">
+      <div class="loc">선부동 <span class="ic-svg" x-html="ic('chevd')"></span><small x-text="roleLabel"></small></div>
+      <div style="display:flex;align-items:center;gap:11px">
+        <span class="rolechip" x-text="roleTag"></span>
+        <span class="bell ic-svg" x-html="ic('bell')"></span>
+      </div>
+    </div>
+
+    <div class="body" :key="role+screen">
+
+      <!-- ── 후원자 ── -->
+      <template x-if="role==='donor' && screen==='feed'">
+        <div>
+          <div class="banner">
+            <div class="seal ic-svg" style="font-size:18px" x-html="ic('shield')"></div>
+            <div><b>관공서가 보증하는 나눔</b><p>모든 매칭은 협의체 위원이 중개합니다. 받는 분은 노출되지 않습니다.</p></div>
+          </div>
+          <div class="sectit">우리 동네 나눔글</div>
+          <template x-for="it in feed" :key="it.id">
+            <div class="card" @click="open(it)">
+              <div class="row">
+                <div class="thumb ic-svg" x-html="ic(it.ic)"></div>
+                <div class="meta">
+                  <h3 x-text="it.title"></h3>
+                  <div class="sub" x-text="it.shop + ' · ' + it.dist"></div>
+                  <div class="foot">
+                    <span class="tag line" x-text="it.kind"></span>
+                    <span class="verify"><span class="ic-svg" x-html="ic('check')"></span>인증 나눔가게</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <template x-if="role==='donor' && screen==='post'">
+        <div>
+          <div class="sectit">나눔 내놓기</div>
+          <div class="field"><label>무엇을 나누시나요</label><div class="inp ph">예) 따뜻한 한끼 도시락 5개</div></div>
+          <div class="field"><label>나눔 종류</label>
+            <div class="chips"><span class="on">물품</span><span>서비스</span><span>식사</span><span>수리</span></div>
+          </div>
+          <div class="field"><label>수량 / 가능 횟수</label><div class="inp ph">예) 매주 화요일 5개</div></div>
+          <div class="field"><label>가게 / 후원자명</label><div class="inp">엄마손칼국수</div></div>
+          <div class="field"><label>전달 방식</label>
+            <div class="chips"><span class="on">위원이 수령</span><span>대상자 방문</span><span>배달</span></div>
+          </div>
+          <button class="btn">나눔글 올리기</button>
+          <p class="legend" style="margin-top:13px;max-width:none">올린 나눔글은 협의체 위원만 매칭에 사용하며,<br>받는 분의 정보는 후원자에게 공개되지 않습니다.</p>
+        </div>
+      </template>
+
+      <template x-if="role==='donor' && screen==='mine'">
+        <div>
+          <div class="sectit">내 나눔 활동</div>
+          <div class="stats">
+            <div class="stat"><b>12</b><span>누적 나눔</span></div>
+            <div class="stat"><b>38</b><span>나눔지수</span></div>
+            <div class="stat"><b>3</b><span>이번 달</span></div>
+          </div>
+          <div class="sectit">공식 증빙</div>
+          <div class="cert"><span class="seal2 ic-svg" x-html="ic('doc')"></span><b>2025년 기부금 영수증</b><p>관공서 발급 · 연말정산 세액공제 대상 · 환산액 384,000원</p></div>
+          <div class="cert"><span class="seal2 ic-svg" x-html="ic('award')"></span><b>자원봉사 실적 인증서</b><p>1365 자원봉사 연계 · 누적 18시간</p></div>
+          <div class="sectit">익명 감사 메시지</div>
+          <div class="card flat"><div class="meta"><h3>“덕분에 아이들이 따뜻한 저녁을 먹었습니다”</h3><div class="sub">선부동 한 가정 · 위원 전달</div></div></div>
+        </div>
+      </template>
+
+      <!-- ── 위원 ── -->
+      <template x-if="role==='member' && screen==='cases'">
+        <div>
+          <div class="banner">
+            <div class="seal ic-svg" x-html="ic('lock')"></div>
+            <div><b>발굴 케이스 · 비식별</b><p>대상자 정보는 위원만 열람합니다. 후원자에게는 공개되지 않습니다.</p></div>
+          </div>
+          <div class="sectit">내가 발굴한 도움 필요</div>
+          <template x-for="c in cases" :key="c.id">
+            <div class="card" @click="open(c)">
+              <div class="meta">
+                <h3 x-text="c.code + ' · ' + c.need"></h3>
+                <div class="sub" x-text="c.note"></div>
+                <div class="foot">
+                  <span class="tag" :class="c.urgent?'fill':'soft'" x-text="c.urgent?'긴급':'일반'"></span>
+                  <span class="tag line" x-text="c.matched?'매칭완료':'매칭전'"></span>
+                </div>
+              </div>
+            </div>
+          </template>
+          <button class="btn ghost"><span class="ic-svg" x-html="ic('plus')"></span> 새 케이스 등록</button>
+        </div>
+      </template>
+
+      <template x-if="role==='member' && screen==='match'">
+        <div>
+          <div class="sectit">매칭하기</div>
+          <p class="legend" style="text-align:left;max-width:none;margin:0 0 12px">왼쪽 ‘필요’와 오른쪽 ‘나눔’을 연결하면 도움이 닿습니다.</p>
+          <div class="matchwrap">
+            <div class="matchrow">
+              <div class="mbox"><b>선부동 A가정</b><small>식료품 시급 · 4인</small></div>
+              <div class="marrow ic-svg" x-html="ic('link')"></div>
+              <div class="mbox"><b>강마트 쌀 10kg</b><small>물품 나눔 · 2포</small></div>
+            </div>
+            <button class="btn">이 매칭 확정</button>
+          </div>
+          <div class="matchwrap">
+            <div class="matchrow">
+              <div class="mbox"><b>초지동 B가정</b><small>집수리 필요</small></div>
+              <div class="marrow ic-svg" x-html="ic('link')"></div>
+              <div class="mbox"><b>한빛철물점</b><small>도어록·수도 수리</small></div>
+            </div>
+            <button class="btn">이 매칭 확정</button>
+          </div>
+          <div class="sectit">진행 중 매칭</div>
+          <div class="card flat"><div class="meta"><h3>와동 C어르신 — 푸른세탁소</h3><div class="sub">이불 빨래 · 전달 예정 6/4</div><div class="foot"><span class="tag soft">진행중</span></div></div></div>
+        </div>
+      </template>
+
+      <template x-if="role==='member' && screen==='report'">
+        <div>
+          <div class="sectit">활동 기록 · 보고서</div>
+          <div class="stats">
+            <div class="stat"><b>24</b><span>발굴 케이스</span></div>
+            <div class="stat"><b>19</b><span>매칭 성사</span></div>
+            <div class="stat"><b>5</b><span>공적 연계</span></div>
+          </div>
+          <div class="banner">
+            <div class="seal ic-svg" x-html="ic('bot')"></div>
+            <div><b>AI 월간 활동 보고서</b><p>매칭 기록을 모아 시청 제출용 보고서를 자동 생성합니다.</p></div>
+          </div>
+          <button class="btn">이번 달 보고서 생성</button>
+          <div class="sectit">최근 보고서</div>
+          <div class="card flat"><div class="row"><div class="thumb ic-svg" x-html="ic('doc')"></div><div class="meta"><h3>2025년 5월 활동 보고서</h3><div class="sub">매칭 19건 · PDF · 제출완료</div></div></div></div>
+          <div class="card flat"><div class="row"><div class="thumb ic-svg" x-html="ic('doc')"></div><div class="meta"><h3>2025년 4월 활동 보고서</h3><div class="sub">매칭 15건 · PDF · 제출완료</div></div></div></div>
+        </div>
+      </template>
+
+      <!-- ── 사무국 ── -->
+      <template x-if="role==='office' && screen==='dash'">
+        <div>
+          <div class="sectit">협의체 현황</div>
+          <div class="stats">
+            <div class="stat"><b>147</b><span>인증가게</span></div>
+            <div class="stat"><b>32</b><span>활동 위원</span></div>
+            <div class="stat"><b>286</b><span>누적 매칭</span></div>
+          </div>
+          <div class="banner">
+            <div class="seal ic-svg" x-html="ic('chart')"></div>
+            <div><b>이번 달 임팩트</b><p>나눔 41건 · 도움 닿은 가정 38곳 · 환산액 1,920,000원</p></div>
+          </div>
+          <div class="sectit">긴급 모니터링</div>
+          <div class="card flat"><div class="meta"><h3>매칭 대기 긴급 케이스 2건</h3><div class="sub">선부동 1 · 초지동 1 · 담당 위원 배정 필요</div><div class="foot"><span class="tag fill">긴급</span></div></div></div>
+        </div>
+      </template>
+
+      <template x-if="role==='office' && screen==='members'">
+        <div>
+          <div class="sectit">위원 위촉 관리</div>
+          <div class="card flat"><div class="row"><div class="thumb ic-svg" x-html="ic('user')"></div><div class="meta"><h3>김복지 위원</h3><div class="sub">선부동 · 위촉 2023.03</div><div class="foot"><span class="tag soft">활동중</span><span class="tag line">매칭 19</span></div></div></div></div>
+          <div class="card flat"><div class="row"><div class="thumb ic-svg" x-html="ic('user')"></div><div class="meta"><h3>이나눔 위원</h3><div class="sub">초지동 · 위촉 2024.07</div><div class="foot"><span class="tag soft">활동중</span><span class="tag line">매칭 11</span></div></div></div></div>
+          <button class="btn ghost"><span class="ic-svg" x-html="ic('plus')"></span> 신규 위원 위촉</button>
+        </div>
+      </template>
+
+      <template x-if="role==='office' && screen==='badges'">
+        <div>
+          <div class="sectit">인증 · 배지 관리</div>
+          <p class="legend" style="text-align:left;max-width:none;margin:0 0 10px">가게에 부착할 ‘인증 나눔가게’ 배지를 발급·관리합니다.</p>
+          <div class="card flat"><div class="row"><div class="thumb ic-svg" x-html="ic('store')"></div><div class="meta"><h3>강마트 · 동네슈퍼</h3><div class="sub">나눔 22회 · 골드 등급</div><div class="foot"><span class="tag soft">인증완료</span></div></div></div></div>
+          <div class="card flat"><div class="row"><div class="thumb ic-svg" x-html="ic('scissors')"></div><div class="meta"><h3>행복미용실</h3><div class="sub">나눔 9회 · 실버 등급</div><div class="foot"><span class="tag soft">인증완료</span></div></div></div></div>
+          <div class="card flat"><div class="row"><div class="thumb ic-svg" x-html="ic('meal')"></div><div class="meta"><h3>엄마손칼국수</h3><div class="sub">신규 신청 · 승인 대기</div><div class="foot"><span class="tag line">승인대기</span></div></div></div></div>
+        </div>
+      </template>
+
+    </div>
+
+    <!-- 디테일 -->
+    <template x-if="detail">
+      <div class="overlay">
+        <div class="ovhd"><div class="back ic-svg" @click="detail=null" x-html="ic('chevl')"></div><b x-text="role==='member'?'케이스 상세':'나눔 상세'"></b></div>
+        <div class="ovbody">
+          <div class="hero ic-svg" style="font-size:48px" x-html="ic(detail.ic||'heart')"></div>
+          <div class="deftit" x-text="detail.title||(detail.code+' · '+detail.need)"></div>
+          <div class="defmeta" x-text="detail.shop?(detail.shop+' · '+detail.dist):detail.note"></div>
+          <div class="divline"></div>
+          <template x-if="role==='donor'">
+            <div>
+              <div class="infoline"><span>나눔 종류</span><span x-text="detail.kind"></span></div>
+              <div class="infoline"><span>전달 방식</span><span>협의체 위원 수령</span></div>
+              <div class="infoline"><span>인증 상태</span><span class="verify"><span class="ic-svg" x-html="ic('check')"></span>관공서 인증가게</span></div>
+              <div class="infoline"><span>받는 분</span><span style="color:var(--ink-3)">비공개 · 위원 중개</span></div>
+              <button class="btn">이 나눔 제공하기</button>
+              <button class="btn ghost">위원에게 문의</button>
+            </div>
+          </template>
+          <template x-if="role==='member'">
+            <div>
+              <div class="infoline"><span>긴급도</span><span x-text="detail.urgent?'긴급':'일반'"></span></div>
+              <div class="infoline"><span>상담 기록</span><span>2건</span></div>
+              <div class="infoline"><span>공적지원 검토</span><span>긴급복지 대상 가능</span></div>
+              <div class="infoline"><span>매칭 상태</span><span x-text="detail.matched?'완료':'매칭 전'"></span></div>
+              <button class="btn">나눔글과 매칭하기</button>
+              <button class="btn ghost">공적지원 연계 체크</button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
+
+    <!-- 하단 탭 -->
+    <div class="tabs">
+      <template x-for="t in tabs" :key="t.k">
+        <button :class="screen===t.k&&'on'" @click="screen=t.k;detail=null">
+          <span class="ti ic-svg" x-html="ic(t.i)"></span><span class="tl" x-text="t.l"></span>
+        </button>
+      </template>
+    </div>
+  </div>
+
+  <p class="legend">
+    <b>핵심 원칙</b> · 도움받는 대상자는 앱에 등장하지 않습니다.<br>
+    후원자의 나눔 — 위원이 발굴한 필요 — <b>위원 중개</b>, <b>관공서 보증</b>.
+  </p>
+</div>
+
+<script>
+const IC = {
+  bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  shield:'<path d="M12 3l7 2.5V11c0 4.6-3 7.6-7 9-4-1.4-7-4.4-7-9V5.5z"/><path d="M9 12l2 2 4-4"/>',
+  lock:'<rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',
+  scissors:'<circle cx="6.5" cy="6.5" r="2.3"/><circle cx="6.5" cy="17.5" r="2.3"/><path d="M8.4 7.8L19 18M8.4 16.2L19 6"/>',
+  meal:'<path d="M4 11h16a8 8 0 0 1-16 0z"/><path d="M3 11h18"/><path d="M9.5 4c0 1.6-1 1.6-1 3.2M14.5 4c0 1.6-1 1.6-1 3.2"/>',
+  bag:'<path d="M6 8.5h12l-1 11.5H7z"/><path d="M9 8.5a3 3 0 0 1 6 0"/>',
+  fix:'<path d="M9 4.2a4 4 0 0 0 5.3 5.3l5 5a1.6 1.6 0 0 1-2.3 2.3l-5-5A4 4 0 0 1 6.7 6.5z"/>',
+  basket:'<path d="M4.5 9.5h15l-1.6 10H6.1z"/><path d="M5 9.5l3-5M19 9.5l-3-5"/>',
+  heart:'<path d="M12 20s-7-4.6-7-10.2A3.8 3.8 0 0 1 12 7a3.8 3.8 0 0 1 7-2.2C19 14.4 12 20 12 20z" stroke-linejoin="round"/>',
+  pen:'<path d="M5 19l1.2-4L16 5.2 18.8 8 9 17.8z"/><path d="M14.5 6.7l2.8 2.8"/>',
+  doc:'<path d="M7 3.5h7L18 7.5V20.5H7z"/><path d="M14 3.5v4h4"/><path d="M9.5 12.5h6M9.5 16h6"/>',
+  compass:'<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2.3 5.2-5.2 2.3 2.3-5.2z" stroke-linejoin="round"/>',
+  link:'<path d="M9.5 12h5"/><path d="M10.5 8.5H9a3.5 3.5 0 0 0 0 7h1.5M13.5 8.5H15a3.5 3.5 0 0 1 0 7h-1.5"/>',
+  chart:'<path d="M4 20h16"/><path d="M7 20v-7M12 20V7M17 20v-4"/>',
+  building:'<rect x="5.5" y="4" width="13" height="16"/><path d="M9 8h2M13 8h2M9 11.5h2M13 11.5h2M9 15h2M13 15h2"/><path d="M5.5 20h13"/>',
+  users:'<circle cx="9.5" cy="9" r="3"/><path d="M4 19a5.5 5.5 0 0 1 11 0"/><path d="M16 6.2a3 3 0 0 1 0 5.6M20 18.5a5.5 5.5 0 0 0-3.5-5"/>',
+  user:'<circle cx="12" cy="8.5" r="3.4"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/>',
+  store:'<path d="M4.5 9l1.4-4.5h12.2L19.5 9"/><path d="M4.5 9a2.4 2.4 0 0 0 4.7 0 2.4 2.4 0 0 0 4.6 0 2.4 2.4 0 0 0 4.7 0"/><path d="M6 11v9h12v-9"/>',
+  award:'<circle cx="12" cy="9" r="4.6"/><path d="M9.4 12.8L8 20l4-2.4 4 2.4-1.4-7.2"/>',
+  bot:'<rect x="5" y="8.5" width="14" height="10.5" rx="2.2"/><path d="M12 4.5v4M9.2 13.5h.01M14.8 13.5h.01"/><path d="M3.5 12v3M20.5 12v3"/>',
+  plus:'<path d="M12 6v12M6 12h12"/>',
+  check:'<path d="M5 12.5l4 4 10-10"/>',
+  chevl:'<path d="M14 6l-6 6 6 6"/>',
+  chevd:'<path d="M7 10l5 5 5-5"/>'
+};
+function icSvg(name){
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">${IC[name]||IC.heart}</svg>`;
+}
+function ieum(){
+  return {
+    role:'donor', screen:'feed', detail:null,
+    ic:icSvg,
+    tabsByRole:{
+      donor:[{k:'feed',i:'heart',l:'나눔'},{k:'post',i:'pen',l:'나눔하기'},{k:'mine',i:'doc',l:'내활동'}],
+      member:[{k:'cases',i:'compass',l:'케이스'},{k:'match',i:'link',l:'매칭'},{k:'report',i:'chart',l:'활동기록'}],
+      office:[{k:'dash',i:'building',l:'현황'},{k:'members',i:'users',l:'위원'},{k:'badges',i:'award',l:'인증'}]
+    },
+    feed:[
+      {id:1,ic:'scissors',title:'무료 커트 3장 나눔',shop:'행복미용실',dist:'도보 4분',kind:'서비스'},
+      {id:2,ic:'meal',title:'따뜻한 한끼 도시락 5개',shop:'엄마손칼국수',dist:'도보 7분',kind:'식사'},
+      {id:3,ic:'bag',title:'쌀 10kg · 2포',shop:'강마트',dist:'도보 3분',kind:'물품'},
+      {id:4,ic:'fix',title:'도어록·수도 수리 지원',shop:'한빛철물점',dist:'도보 9분',kind:'서비스'},
+      {id:5,ic:'basket',title:'이불 빨래 무료 세탁',shop:'푸른세탁소',dist:'도보 6분',kind:'서비스'}
+    ],
+    cases:[
+      {id:11,code:'선부동 A가정',need:'식료품 시급',note:'가장 실직 · 4인 가족 · 상담 후 발굴',urgent:true,matched:false},
+      {id:12,code:'초지동 B가정',need:'집수리 필요',note:'교통사고 후 거동 불편',urgent:false,matched:false},
+      {id:13,code:'와동 C어르신',need:'겨울 이불',note:'독거 어르신 · 정기 방문 대상',urgent:false,matched:true}
+    ],
+    get tabs(){return this.tabsByRole[this.role]},
+    get roleLabel(){return {donor:'나눔 후원자',member:'협의체 위원',office:'협의체 사무국'}[this.role]},
+    get roleTag(){return {donor:'후원자',member:'위원',office:'사무국'}[this.role]},
+    setRole(r){this.role=r;this.detail=null;this.screen=this.tabsByRole[r][0].k},
+    open(it){this.detail=it}
+  }
+}
+</script>
