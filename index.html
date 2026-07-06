@@ -222,7 +222,50 @@
     letter-spacing:-.01em}
 
   /* ============================================================ */
-  /* 슬라이드 6 — 실제 앱 화면 + 긍정 클로징 */
+  /* 슬라이드 6 — 위원회에 여쭙습니다 (함께 정할 것들) */
+  /* ============================================================ */
+  .sqa{grid-template-rows:auto 1fr;padding:6vh 6vh}
+  .sqa header{max-width:80%}
+  .sqa .kicker{margin-bottom:2vh}
+  .sqa h2{font-family:'Noto Serif KR',serif;font-weight:600;
+    font-size:5.8vh;line-height:1.1;letter-spacing:-.03em}
+  .sqa h2 em{font-style:normal;color:var(--ink-3);font-weight:400}
+
+  .sqa .body-grid{display:grid;grid-template-columns:1fr 1.7fr;gap:3.6vh;
+    margin-top:4vh;align-items:stretch}
+
+  .sqa .confirm{background:var(--ink);color:var(--paper);padding:3.8vh 3.4vh;
+    display:flex;flex-direction:column;gap:2.4vh}
+  .sqa .confirm .lbl{font-size:1.1vh;font-weight:800;letter-spacing:.32em;
+    color:rgba(245,243,236,.65)}
+  .sqa .confirm h3{font-family:'Noto Serif KR',serif;font-weight:600;
+    font-size:2.6vh;line-height:1.3;letter-spacing:-.02em;margin-top:.4vh}
+  .sqa .confirm ul{list-style:none;display:flex;flex-direction:column;gap:1.8vh;
+    margin-top:1vh}
+  .sqa .confirm li{font-size:1.45vh;line-height:1.55;font-weight:500;
+    color:rgba(245,243,236,.85)}
+  .sqa .confirm li b{display:block;font-family:'Noto Serif KR',serif;font-weight:600;
+    font-size:1.95vh;color:var(--paper);margin-bottom:.4em;letter-spacing:-.02em;
+    font-style:normal}
+  .sqa .confirm li + li{padding-top:1.8vh;border-top:1px solid rgba(245,243,236,.15)}
+  .sqa .confirm .note{margin-top:auto;font-size:1.15vh;line-height:1.55;
+    color:rgba(245,243,236,.55);font-weight:500;font-style:italic;
+    padding-top:2vh;border-top:1px solid rgba(245,243,236,.15)}
+
+  .sqa .discuss .lbl{font-size:1.1vh;font-weight:800;letter-spacing:.32em;
+    color:var(--ink-3);display:block;margin-bottom:1.4vh}
+  .sqa .items{display:grid;grid-template-columns:1fr 1fr;gap:2vh 2.6vh}
+  .sqa .item{border-top:1px solid var(--line);padding-top:1.6vh;
+    display:flex;gap:1.4vh;align-items:flex-start}
+  .sqa .item .n{font-family:'Noto Serif KR',serif;font-size:2.2vh;
+    font-weight:500;color:var(--ink);flex:none;line-height:1.1;min-width:3vh}
+  .sqa .item h4{font-size:1.7vh;font-weight:700;letter-spacing:-.01em;line-height:1.35}
+  .sqa .item .draft{font-size:1.3vh;line-height:1.55;color:var(--ink-3);
+    font-weight:500;margin-top:.5vh}
+  .sqa .item .draft b{color:var(--ink);font-weight:700}
+
+  /* ============================================================ */
+  /* 슬라이드 7 — 실제 앱 화면 + 긍정 클로징 */
   /* ============================================================ */
   .s6{grid-template-rows:auto auto 1fr;padding:5vh 6vh 0}
   .s6 header{text-align:center;max-width:80%;margin:0 auto}
@@ -338,7 +381,7 @@
       </blockquote>
     </div>
     <div class="foot">IEUM · Sunbu-dong</div>
-    <div class="pageno">01 / 06</div>
+    <div class="pageno">01 / 07</div>
   </section>
 
   <!-- ================ SLIDE 2 : 매일 마주하는 벽 ================ -->
@@ -387,7 +430,7 @@
     </div>
 
     <div class="foot">IEUM · Sunbu-dong</div>
-    <div class="pageno">02 / 06</div>
+    <div class="pageno">02 / 07</div>
   </section>
 
   <!-- ================ SLIDE 3 : 이음이 하는 일 ================ -->
@@ -439,7 +482,7 @@
     </div>
 
     <div class="foot">IEUM · Sunbu-dong</div>
-    <div class="pageno">03 / 06</div>
+    <div class="pageno">03 / 07</div>
   </section>
 
   <!-- ================ SLIDE 4 : 선부3동지사협위원의 하루가 달라진다 ================ -->
@@ -479,7 +522,7 @@
     </div>
 
     <div class="foot">IEUM · Sunbu-dong</div>
-    <div class="pageno">04 / 06</div>
+    <div class="pageno">04 / 07</div>
   </section>
 
   <!-- ================ SLIDE 5 : 함께 시작해요 ================ -->
@@ -551,11 +594,90 @@
     </div>
 
     <div class="foot" style="color:rgba(245,243,236,.55)">IEUM · Sunbu-dong</div>
-    <div class="pageno">05 / 06</div>
+    <div class="pageno">05 / 07</div>
   </section>
 
-  <!-- ================ SLIDE 6 : 실제 앱 화면 + 긍정 클로징 ================ -->
-  <section class="slide s6" data-i="5">
+  <!-- ================ SLIDE 6 : 위원회에 여쭙습니다 · 함께 정할 것들 ================ -->
+  <section class="slide sqa" data-i="5">
+    <header>
+      <div class="kicker">위원회에 여쭙습니다</div>
+      <h2>함께 <em>정할 것들.</em></h2>
+    </header>
+
+    <div class="body-grid">
+      <div class="confirm">
+        <div>
+          <div class="lbl">FIRST · 먼저 확언 드립니다</div>
+          <h3>이 두 가지는<br>미리 못 박아 둡니다.</h3>
+        </div>
+        <ul>
+          <li>
+            <b>협의체 예산 부담 · 0원</b>
+            운영·개발 어떤 비용도 협의체에 청구하지 않습니다.
+          </li>
+          <li>
+            <b>개발비 · 이관희 위원 재능기부</b>
+            학원 원장 겸직 사실을 사전에 밝히며, 이해상충이 없도록 설계합니다.
+          </li>
+        </ul>
+        <div class="note">— 이 두 가지만 미리 확실히 하고,<br>나머지는 위원회와 함께 정합니다.</div>
+      </div>
+
+      <div class="discuss">
+        <span class="lbl">DISCUSSION · 다음 회의 안건</span>
+        <div class="items">
+          <div class="item">
+            <div class="n">01</div>
+            <div class="txt">
+              <h4>개인정보 처리 원칙</h4>
+              <div class="draft">초안: <b>비식별 코드만 저장</b>. 시·행정복지센터 사전 승인 절차 협의.</div>
+            </div>
+          </div>
+          <div class="item">
+            <div class="n">02</div>
+            <div class="txt">
+              <h4>인증 나눔가게 발굴</h4>
+              <div class="draft">초안: <b>위원 1인당 2곳 추천</b> → 파일럿 10곳 목표.</div>
+            </div>
+          </div>
+          <div class="item">
+            <div class="n">03</div>
+            <div class="txt">
+              <h4>후원자 인센티브</h4>
+              <div class="draft">초안: <b>1365 봉사시간 인증 우선</b>, 기부금 영수증은 요건 검토 후.</div>
+            </div>
+          </div>
+          <div class="item">
+            <div class="n">04</div>
+            <div class="txt">
+              <h4>파일럿 성공 지표</h4>
+              <div class="draft">초안: 인증가게 10곳 · <b>매칭 20건</b> · 위원 만족도 80%.</div>
+            </div>
+          </div>
+          <div class="item">
+            <div class="n">05</div>
+            <div class="txt">
+              <h4>매칭 승인 프로세스</h4>
+              <div class="draft">초안: 개인 위원이 아닌 <b>협의체 공동 결정</b>으로.</div>
+            </div>
+          </div>
+          <div class="item">
+            <div class="n">06</div>
+            <div class="txt">
+              <h4>위원 사용 온보딩</h4>
+              <div class="draft">초안: <b>1시간 실습 세션</b> + 필요 시 1:1 지원.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">IEUM · Sunbu-dong</div>
+    <div class="pageno">06 / 07</div>
+  </section>
+
+  <!-- ================ SLIDE 7 : 실제 앱 화면 + 긍정 클로징 ================ -->
+  <section class="slide s6" data-i="6">
     <header>
       <div class="kicker">그리고, 이렇게 만나게 됩니다</div>
       <h2>
@@ -614,7 +736,7 @@
     </div>
 
     <div class="foot" style="color:rgba(245,243,236,.55)">IEUM · Sunbu-dong</div>
-    <div class="pageno" style="color:rgba(245,243,236,.7)">06 / 06</div>
+    <div class="pageno" style="color:rgba(245,243,236,.7)">07 / 07</div>
   </section>
 
 </div>
