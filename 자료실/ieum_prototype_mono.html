@@ -171,7 +171,7 @@
   <div class="roleseg" style="margin:0 auto">
     <button :class="role==='donor'&&'on'" @click="setRole('donor')">후원자</button>
     <button :class="role==='member'&&'on'" @click="setRole('member')">협의체 위원</button>
-    <button :class="role==='office'&&'on'" @click="setRole('office')">사무국</button>
+    <button :class="role==='office'&&'on'" @click="setRole('office')">운영자</button>
   </div>
 
   <div class="phone" style="margin-top:16px">
@@ -315,7 +315,7 @@
         </div>
       </template>
 
-      <!-- ── 사무국 ── -->
+      <!-- ── 운영자 ── -->
       <template x-if="role==='office' && screen==='dash'">
         <div>
           <div class="sectit">협의체 현황</div>
@@ -455,8 +455,8 @@ function ieum(){
       {id:13,code:'와동 C어르신',need:'겨울 이불',note:'독거 어르신 · 정기 방문 대상',urgent:false,matched:true}
     ],
     get tabs(){return this.tabsByRole[this.role]},
-    get roleLabel(){return {donor:'나눔 후원자',member:'협의체 위원',office:'협의체 사무국'}[this.role]},
-    get roleTag(){return {donor:'후원자',member:'위원',office:'사무국'}[this.role]},
+    get roleLabel(){return {donor:'나눔 후원자',member:'협의체 위원',office:'협의체 운영자'}[this.role]},
+    get roleTag(){return {donor:'후원자',member:'위원',office:'운영자'}[this.role]},
     setRole(r){this.role=r;this.detail=null;this.screen=this.tabsByRole[r][0].k},
     open(it){this.detail=it}
   }
