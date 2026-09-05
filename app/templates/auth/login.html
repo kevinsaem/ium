@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}이음 · 로그인{% endblock %}
+
+{% block frame %}
+<div class="auth">
+  <div class="mark">이음 <b>·</b> 理音</div>
+  <p class="lede">{{ settings.dong }} 지역사회보장협의체 나눔 매칭<br>도움이 필요한 이웃이 스스로 손을 들지 않아도.</p>
+
+  {% if error %}<div class="flash warn">{{ error }}</div>{% endif %}
+
+  <form method="post" action="/login">
+    <div class="field">
+      <label>이메일</label>
+      <input type="email" name="email" value="{{ email or '' }}" required autocomplete="username">
+    </div>
+    <div class="field">
+      <label>비밀번호</label>
+      <input type="password" name="password" required autocomplete="current-password">
+    </div>
+    <button class="btn" type="submit">로그인</button>
+  </form>
+
+  {% if demo_users %}
+  <div class="demo">
+    <div class="sectit">개발용 계정 (비밀번호 ium1234)</div>
+    {% for d in demo_users %}
+    <a href="/login?email={{ d.email }}">{{ d.name }} <span>{{ d.role.tag }} · {{ d.email }}</span></a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <p class="legend">
+    <b>핵심 원칙</b> · 도움받는 대상자는 앱에 등장하지 않습니다.<br>
+    후원자의 나눔 — 위원이 발굴한 필요 — <b>위원 중개</b>, <b>협의체 보증</b>.
+  </p>
+</div>
+{% endblock %}

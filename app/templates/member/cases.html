@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="banner">
+  <div class="seal ic-svg">{{ icon('lock') }}</div>
+  <div>
+    <b>케이스는 비식별 코드로만 관리됩니다</b>
+    <p>실명·연락처·주소는 따로 암호화되어 저장되며, 열람할 때마다 기록이 남습니다.</p>
+  </div>
+</div>
+
+<div class="sectit">내가 발굴한 필요</div>
+{% for c in cases %}
+<a class="card" href="/member/cases/{{ c.id }}">
+  <div class="row">
+    <div class="thumb ic-svg">{{ icon('compass') }}</div>
+    <div class="meta">
+      <h3>{{ c.code }}</h3>
+      <div class="sub">{{ c.need_summary }}</div>
+      <div class="foot">
+        {% if c.is_urgent %}<span class="tag fill">긴급</span>{% endif %}
+        <span class="tag line">{{ c.status.label }}</span>
+        {% if c.public_support_linked %}<span class="tag soft">공적지원 연계</span>{% endif %}
+      </div>
+    </div>
+  </div>
+</a>
+{% else %}
+<div class="empty">아직 등록한 케이스가 없습니다.</div>
+{% endfor %}
+
+<div class="sectit">새 케이스 등록</div>
+<form method="post" action="/member/cases">
+  <div class="field">
+    <label>비식별 코드</label>
+    <input name="code" placeholder="예) {{ settings.dong }} A가정" required maxlength="60">
+  </div>
+  <div class="field">
+    <label>필요한 것</label>
+    <input name="need_summary" placeholder="예) 식료품 시급" required maxlength="160">
+  </div>
+  <div class="field">
+    <label>상황 메모 (개인 특정 표현 금지)</label>
+    <textarea name="situation_note" placeholder="예) 가장 실직 · 4인 가족 · 상담 후 발굴"></textarea>
+  </div>
+  <div class="field">
+    <label>가구원 수</label>
+    <input name="household_size" type="number" min="1" max="20">
+  </div>
+  <label class="check">
+    <input type="checkbox" name="is_urgent" value="1"> 긴급 케이스로 표시
+  </label>
+  <button class="btn" type="submit">케이스 등록</button>
+</form>
+<p class="legend">
+  이 화면에는 <b>이름·연락처·주소를 적지 마세요.</b><br>
+  식별정보는 케이스 등록 후 상세 화면의 별도 영역에서 관리합니다.
+</p>
+{% endblock %}

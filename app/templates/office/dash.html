@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="sectit">{{ settings.dong }} 현황</div>
+<div class="stats">
+  <div class="stat"><b>{{ stats.certified_shops }}</b><span>인증가게</span></div>
+  <div class="stat"><b>{{ stats.active_members }}</b><span>활동 위원</span></div>
+  <div class="stat"><b>{{ stats.total_matches }}</b><span>누적 매칭</span></div>
+</div>
+<div class="stats">
+  <div class="stat"><b>{{ stats.month_delivered }}</b><span>이번 달 전달</span></div>
+  <div class="stat"><b>{{ stats.open_cases }}</b><span>대기 케이스</span></div>
+  <div class="stat"><b>{{ stats.urgent_cases }}</b><span>긴급</span></div>
+</div>
+
+{% if stats.urgent_cases %}
+<div class="banner">
+  <div class="seal ic-svg">{{ icon('shield') }}</div>
+  <div>
+    <b>긴급 모니터링 {{ stats.urgent_cases }}건</b>
+    <p>담당 위원이 매칭을 진행 중입니다. 운영자는 비식별 코드만 볼 수 있습니다.</p>
+  </div>
+</div>
+{% endif %}
+
+<div class="sectit">파일럿 목표 대비</div>
+{% for g in goals %}
+<div class="card" style="cursor:default">
+  <div class="meta">
+    <h3>{{ g.label }}</h3>
+    <div class="sub">{{ g.current }} / {{ g.target }} {{ g.unit }}</div>
+    <div class="foot">
+      <span class="tag {{ 'fill' if g.current >= g.target else 'line' }}">
+        {{ ((g.current / g.target * 100) | round | int) if g.target else 0 }}%
+      </span>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<div class="sectit">권한 매트릭스</div>
+<table class="matrix">
+  <tr><th>리소스</th><th>읽기</th><th>쓰기</th></tr>
+  {% for row in permission_rows %}
+  <tr><td>{{ row.resource }}</td><td>{{ row.read }}</td><td>{{ row.write }}</td></tr>
+  {% endfor %}
+</table>
+
+<div class="sectit">식별정보 열람 감사 로그</div>
+{% for log in audit_logs %}
+<div class="card" style="cursor:default;padding:11px 13px">
+  <div class="meta">
+    <h3 style="font-size:12.5px">{{ log.actor.name }} · {{ {'read': '열람', 'write': '수정', 'handover': '담당 변경'}.get(log.action, log.action) }} · 케이스 #{{ log.case_id }}</h3>
+    <div class="sub">{{ log.accessed_at.strftime('%Y-%m-%d %H:%M') }} · {{ log.reason }}</div>
+  </div>
+</div>
+{% else %}
+<div class="empty" style="padding:22px">아직 열람 기록이 없습니다.</div>
+{% endfor %}
+<p class="legend">
+  운영자는 <b>열람했다는 사실</b>만 볼 수 있고 <b>열람된 내용</b>은 볼 수 없습니다.
+</p>
+{% endblock %}

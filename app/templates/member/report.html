@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="sectit">{{ period_label }} 활동 요약</div>
+<div class="stats">
+  <div class="stat"><b>{{ summary.cases }}</b><span>발굴 케이스</span></div>
+  <div class="stat"><b>{{ summary.matches }}</b><span>매칭</span></div>
+  <div class="stat"><b>{{ summary.delivered }}</b><span>전달 완료</span></div>
+</div>
+<div class="stats">
+  <div class="stat"><b>{{ summary.urgent }}</b><span>긴급 처리</span></div>
+  <div class="stat"><b>{{ summary.public_support }}</b><span>공적지원 연계</span></div>
+  <div class="stat"><b>{{ summary.shops }}</b><span>참여 나눔가게</span></div>
+</div>
+
+<div class="banner">
+  <div class="seal ic-svg">{{ icon('doc') }}</div>
+  <div>
+    <b>시청 제출용 보고서 초안</b>
+    <p>매칭 기록에서 자동 생성됩니다. 비식별 코드만 사용하므로 그대로 제출할 수 있습니다.</p>
+  </div>
+</div>
+
+<div class="card" style="cursor:default">
+  <div class="meta">
+    <h3 style="margin-bottom:8px">{{ period_label }} 지역사회보장협의체 활동 보고</h3>
+    <div class="sub" style="line-height:1.9;white-space:pre-line">{{ report_text }}</div>
+  </div>
+</div>
+
+<div class="sectit">전달 내역</div>
+{% for m in delivered %}
+<div class="card" style="cursor:default;padding:11px 13px">
+  <div class="meta">
+    <h3 style="font-size:12.5px">{{ m.case.code }} · {{ m.case.need_summary }}</h3>
+    <div class="sub">{{ m.offer.title }} — {{ m.offer.shop.name }} · {{ m.delivered_at.strftime('%m/%d') if m.delivered_at }}</div>
+  </div>
+</div>
+{% else %}
+<div class="empty" style="padding:22px">이번 달 전달 내역이 없습니다.</div>
+{% endfor %}
+
+<p class="legend">
+  보고서에는 <b>비식별 코드만</b> 들어갑니다. 실명·연락처는 어떤 경우에도 포함되지 않습니다.
+</p>
+{% endblock %}

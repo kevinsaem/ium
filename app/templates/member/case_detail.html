@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="deftit">{{ case.code }}</div>
+<div class="defmeta">
+  {{ case.need_summary }}
+  {% if case.household_size %} · {{ case.household_size }}인 가구{% endif %}
+</div>
+<div class="foot" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+  {% if case.is_urgent %}<span class="tag fill">긴급</span>{% endif %}
+  <span class="tag line">{{ case.status.label }}</span>
+</div>
+
+{% if case.situation_note %}
+<div class="divline"></div>
+<p class="defmeta">{{ case.situation_note }}</p>
+{% endif %}
+
+<div class="divline"></div>
+<form method="post" action="/member/cases/{{ case.id }}/public-support">
+  <label class="check">
+    <input type="checkbox" name="linked" value="1" {{ 'checked' if case.public_support_linked }}>
+    공적지원 연계 (긴급복지 · 기초생활보장 등)
+  </label>
+  <div class="field" style="margin-top:9px">
+    <textarea name="note" placeholder="연계 내용 메모">{{ case.public_support_note or '' }}</textarea>
+  </div>
+  <button class="btn ghost" type="submit">연계 상태 저장</button>
+</form>
+
+<!-- ─────────── 식별정보 격리 구역 ─────────── -->
+<div class="sectit">식별정보</div>
+<div class="sensitive">
+  <div class="shd"><span class="ic-svg">{{ icon('lock') }}</span> 담당 위원 전용 · 열람 기록됨</div>
+
+  {% if identity %}
+    <div class="infoline"><span>성함</span><span>{{ identity.name or '—' }}</span></div>
+    <div class="infoline"><span>연락처</span><span>{{ identity.phone or '—' }}</span></div>
+    <div class="infoline"><span>주소</span><span>{{ identity.address or '—' }}</span></div>
+    {% if identity.consult_note %}
+    <div class="divline"></div>
+    <p class="defmeta">{{ identity.consult_note }}</p>
+    {% endif %}
+    <div class="divline"></div>
+    <div class="infoline">
+      <span>수집 동의</span>
+      <span>{{ identity.consent_obtained_at or '미확인' }}</span>
+    </div>
+    <div class="btnrow">
+      <a class="btn ghost sm" href="/member/cases/{{ case.id }}" style="flex:1">닫기</a>
+      <form method="post" action="/member/cases/{{ case.id }}/identity/purge" style="flex:1"
+            onsubmit="return confirm('식별정보를 영구 파기합니다. 비식별 케이스 기록은 남습니다. 계속할까요?')">
+        <input type="hidden" name="reason" value="케이스 종결에 따른 파기">
+        <button class="btn ghost sm" type="submit" style="width:100%">파기</button>
+      </form>
+    </div>
+
+  {% elif case.has_identity %}
+    <p class="defmeta" style="margin:0 0 10px">
+      등록된 식별정보가 있습니다. 열람하려면 사유를 남겨야 합니다.
+    </p>
+    <form method="post" action="/member/cases/{{ case.id }}/identity/reveal">
+      <div class="field">
+        <label>열람 사유</label>
+        <input name="reason" placeholder="예) 도시락 전달 일정 조율 위해 연락" required>
+      </div>
+      <button class="btn" type="submit">열람하기</button>
+    </form>
+
+  {% else %}
+    <p class="defmeta" style="margin:0 0 10px">등록된 식별정보가 없습니다.</p>
+  {% endif %}
+</div>
+
+<details>
+  <summary style="font-size:11.5px;color:var(--ink-3);cursor:pointer;padding:6px 2px">
+    식별정보 {{ '수정' if case.has_identity else '등록' }}
+  </summary>
+  <form method="post" action="/member/cases/{{ case.id }}/identity" style="margin-top:10px">
+    <div class="field"><label>성함</label><input name="name"></div>
+    <div class="field"><label>연락처</label><input name="phone"></div>
+    <div class="field"><label>주소</label><input name="address"></div>
+    <div class="field"><label>상담 메모</label><textarea name="consult_note"></textarea></div>
+    <div class="field"><label>동의 근거 메모</label><input name="consent_note" placeholder="예) 2026-08-20 대면 상담 시 구두 동의"></div>
+    <label class="check"><input type="checkbox" name="consent_given" value="1"> 정보주체 수집·이용 동의를 받았습니다</label>
+    <button class="btn" type="submit">암호화하여 저장</button>
+  </form>
+</details>
+
+{% if access_logs %}
+<div class="sectit">이 케이스의 열람 기록</div>
+{% for log in access_logs %}
+<div class="card" style="cursor:default;padding:11px 13px">
+  <div class="meta">
+    <h3 style="font-size:12.5px">{{ log.actor.name }} · {{ {'read': '열람', 'write': '수정', 'handover': '담당 변경'}.get(log.action, log.action) }}</h3>
+    <div class="sub">{{ log.accessed_at.strftime('%Y-%m-%d %H:%M') }} · {{ log.reason }}</div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- ─────────── 매칭 ─────────── -->
+<div class="sectit">매칭</div>
+{% for m in case.matches %}
+<div class="matchwrap">
+  <div class="matchrow">
+    <div class="mbox"><b>{{ case.code }}</b><small>{{ case.need_summary }}</small></div>
+    <div class="marrow ic-svg" style="width:20px">{{ icon('link') }}</div>
+    <div class="mbox"><b>{{ m.offer.title }}</b><small>{{ m.offer.shop.name }}</small></div>
+  </div>
+  <div class="foot" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center">
+    <span class="tag {{ 'fill' if m.status.value in ('approved','delivered') else 'line' }}">{{ m.status.label }}</span>
+    <span class="tag soft">승인 {{ m.approval_count }}/{{ required_approvals }}</span>
+  </div>
+</div>
+{% endfor %}
+
+{% if open_offers and case.status.value in ('open', 'matching') %}
+<form method="post" action="/member/matches">
+  <input type="hidden" name="case_id" value="{{ case.id }}">
+  <div class="field">
+    <label>나눔 고르기</label>
+    <select name="offer_id" required>
+      {% for o in open_offers %}
+      <option value="{{ o.id }}">{{ o.title }} — {{ o.shop.name }} ({{ o.kind.label }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field"><label>매칭 메모</label><input name="note" placeholder="예) 화요일 오전 수령 예정"></div>
+  <button class="btn" type="submit">이 케이스에 매칭 제안</button>
+</form>
+<p class="legend">승인 방식: <b>{{ approval_mode_label }}</b></p>
+{% endif %}
+
+<div class="divline"></div>
+{% if case.status.value == 'closed' %}
+<p class="legend">
+  종결된 케이스입니다.
+  {% if case.has_identity %}<br><b>식별정보가 아직 남아 있습니다.</b> 위 파기 버튼으로 정리해 주세요.{% endif %}
+</p>
+<form method="post" action="/member/cases/{{ case.id }}/reopen">
+  <button class="btn ghost" type="submit">종결 되돌리기</button>
+</form>
+{% else %}
+<form method="post" action="/member/cases/{{ case.id }}/close"
+      onsubmit="return confirm('케이스를 종결합니다. 비식별 기록과 통계는 남습니다. 계속할까요?')">
+  <button class="btn ghost" type="submit">케이스 종결</button>
+</form>
+{% endif %}
+
+<a class="btn ghost" href="/member">케이스 목록</a>
+{% endblock %}

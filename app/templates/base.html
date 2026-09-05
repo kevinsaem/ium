@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block title %}이음 · 理音{% endblock %}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<link rel="stylesheet" href="{{ url_for('static', path='/css/ium.css') }}">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.12/htmx.min.js"></script>
+</head>
+<body>
+<div class="phone">
+  {% block frame %}
+  <div class="hd">
+    <div class="loc">{{ settings.dong }}
+      <span class="ic-svg">{{ icon('chevd') }}</span>
+      <small>{{ user.role.label }}</small>
+    </div>
+    <div class="acts">
+      <span class="rolechip">{{ user.role.tag }}</span>
+      <a href="/logout" class="ic-svg" title="로그아웃">{{ icon('out') }}</a>
+    </div>
+  </div>
+
+  <div class="body">
+    {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+    {% block body %}{% endblock %}
+  </div>
+
+  <div class="tabs">
+    {% for t in tabs %}
+    <a href="{{ t.href }}" class="{{ 'on' if t.key == active_tab else '' }}">
+      <span class="ti ic-svg">{{ icon(t.icon) }}</span>
+      <span class="tl">{{ t.label }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endblock %}
+</div>
+</body>
+</html>

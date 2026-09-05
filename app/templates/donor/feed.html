@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="banner">
+  <div class="seal ic-svg">{{ icon('shield') }}</div>
+  <div>
+    <b>협의체가 보증하는 나눔</b>
+    <p>모든 매칭은 협의체 위원이 중개합니다. 받는 분은 노출되지 않습니다.</p>
+  </div>
+</div>
+
+<div class="sectit">우리 동네 나눔글</div>
+{% for offer in offers %}
+<a class="card" href="/donor/offers/{{ offer.id }}">
+  <div class="row">
+    <div class="thumb ic-svg">{{ icon(offer.icon) }}</div>
+    <div class="meta">
+      <h3>{{ offer.title }}</h3>
+      <div class="sub">{{ offer.shop.name }} · {{ offer.shop.distance_label }}</div>
+      <div class="foot">
+        <span class="tag line">{{ offer.kind.label }}</span>
+        {% if offer.status.value != 'open' %}<span class="tag soft">{{ offer.status.label }}</span>{% endif %}
+        {% if offer.shop.is_certified %}
+        <span class="verify"><span class="ic-svg">{{ icon('check') }}</span>인증 나눔가게</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</a>
+{% else %}
+<div class="empty">아직 올라온 나눔글이 없습니다.<br>첫 나눔을 내놓아 보세요.</div>
+{% endfor %}
+{% endblock %}

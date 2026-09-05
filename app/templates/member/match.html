@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="banner">
+  <div class="seal ic-svg">{{ icon('link') }}</div>
+  <div>
+    <b>{{ approval_mode_label }}</b>
+    <p>승인 방식은 협의체 결정에 따라 설정으로 바꿀 수 있습니다. 모든 승인은 기록됩니다.</p>
+  </div>
+</div>
+
+<div class="sectit">승인 대기</div>
+{% for m in pending %}
+<div class="matchwrap">
+  <div class="matchrow">
+    <div class="mbox"><b>{{ m.case.code }}</b><small>{{ m.case.need_summary }}</small></div>
+    <div class="marrow ic-svg" style="width:20px">{{ icon('link') }}</div>
+    <div class="mbox"><b>{{ m.offer.title }}</b><small>{{ m.offer.shop.name }}</small></div>
+  </div>
+  <div class="foot" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+    <span class="tag line">{{ m.status.label }}</span>
+    <span class="tag soft">승인 {{ m.approval_count }}/{{ required_approvals }}</span>
+    <span class="tag line">제안 {{ m.proposed_by.name }}</span>
+  </div>
+  {% if m.id not in my_approved %}
+  <form method="post" action="/member/matches/{{ m.id }}/approve">
+    <button class="btn" type="submit">이 매칭에 승인</button>
+  </form>
+  {% else %}
+  <p class="legend" style="margin-top:9px">이미 승인하셨습니다. 다른 위원의 승인을 기다리는 중입니다.</p>
+  {% endif %}
+  {% if m.id in my_cases %}
+  <form method="post" action="/member/matches/{{ m.id }}/cancel"
+        onsubmit="return confirm('이 매칭을 취소합니다. 나눔글은 후원자에게 돌아갑니다. 계속할까요?')">
+    <div class="field" style="margin:9px 0 0">
+      <input name="reason" placeholder="취소 사유 (예: 가정 사정으로 수령 어려움)" required>
+    </div>
+    <button class="btn ghost sm" type="submit">매칭 취소</button>
+  </form>
+  {% endif %}
+</div>
+{% else %}
+<div class="empty" style="padding:22px">승인 대기 중인 매칭이 없습니다.</div>
+{% endfor %}
+
+<div class="sectit">진행 중 (전달 대기)</div>
+{% for m in approved %}
+<div class="matchwrap">
+  <div class="matchrow">
+    <div class="mbox"><b>{{ m.case.code }}</b><small>{{ m.case.need_summary }}</small></div>
+    <div class="marrow ic-svg" style="width:20px">{{ icon('link') }}</div>
+    <div class="mbox"><b>{{ m.offer.title }}</b><small>{{ m.offer.shop.name }}</small></div>
+  </div>
+  <div class="foot" style="display:flex;gap:6px;margin-top:10px">
+    <span class="tag fill">{{ m.status.label }}</span>
+    <span class="tag line">{{ m.offer.delivery.label }}</span>
+  </div>
+  {% if m.id in my_cases %}
+  <form method="post" action="/member/matches/{{ m.id }}/deliver">
+    <div class="field" style="margin:11px 0 0">
+      <input name="note" placeholder="전달 메모 (선택)">
+    </div>
+    <div class="field" style="margin:9px 0 0">
+      <input name="thanks" placeholder="익명 감사 메시지 (후원자에게 전달, 개인 특정 표현 금지)">
+    </div>
+    <button class="btn" type="submit">전달 완료 처리</button>
+  </form>
+  <form method="post" action="/member/matches/{{ m.id }}/cancel"
+        onsubmit="return confirm('이 매칭을 취소합니다. 나눔글은 후원자에게 돌아갑니다. 계속할까요?')">
+    <div class="field" style="margin:9px 0 0">
+      <input name="reason" placeholder="취소 사유 (예: 가정 사정으로 수령 어려움)" required>
+    </div>
+    <button class="btn ghost sm" type="submit">매칭 취소</button>
+  </form>
+  {% else %}
+  <p class="legend" style="margin-top:9px">담당 위원({{ m.case.member.name }})이 전달과 취소를 처리합니다.</p>
+  {% endif %}
+</div>
+{% else %}
+<div class="empty" style="padding:22px">전달 대기 중인 매칭이 없습니다.</div>
+{% endfor %}
+
+<div class="sectit">전달 완료</div>
+{% for m in delivered %}
+<div class="card" style="cursor:default">
+  <div class="meta">
+    <h3>{{ m.case.code }} ← {{ m.offer.title }}</h3>
+    <div class="sub">{{ m.offer.shop.name }} · {{ m.delivered_at.strftime('%Y-%m-%d') if m.delivered_at }}</div>
+  </div>
+</div>
+{% else %}
+<div class="empty" style="padding:22px">아직 전달 완료된 매칭이 없습니다.</div>
+{% endfor %}
+{% endblock %}

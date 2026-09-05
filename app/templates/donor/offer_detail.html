@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="hero ic-svg" style="font-size:44px">{{ icon(offer.icon) }}</div>
+
+<div class="deftit">{{ offer.title }}</div>
+<div class="defmeta">
+  {{ offer.shop.name }} · {{ offer.shop.distance_label }}
+  {% if offer.shop.is_certified %}<br><span class="verify"><span class="ic-svg">{{ icon('check') }}</span>협의체 인증 나눔가게</span>{% endif %}
+</div>
+
+{% if offer.detail %}<p class="defmeta" style="margin-top:12px">{{ offer.detail }}</p>{% endif %}
+
+<div class="divline"></div>
+<div class="infoline"><span>나눔 종류</span><span>{{ offer.kind.label }}</span></div>
+<div class="infoline"><span>수량 / 가능 횟수</span><span>{{ offer.quantity_note or '—' }}</span></div>
+<div class="infoline"><span>전달 방식</span><span>{{ offer.delivery.label }}</span></div>
+<div class="infoline"><span>상태</span><span>{{ offer.status.label }}</span></div>
+<div class="infoline">
+  <span>받는 분</span>
+  <span><span class="ic-svg">{{ icon('lock') }}</span> 비공개 (위원 중개)</span>
+</div>
+
+{% if thanks %}
+<div class="sectit">이 나눔이 닿은 곳</div>
+{% for t in thanks %}
+<div class="card" style="cursor:default">
+  <div class="meta">
+    <h3>&ldquo;{{ t.body }}&rdquo;</h3>
+    <div class="sub">{{ settings.dong }} 한 가정 · 위원 전달</div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<p class="legend">
+  받는 분의 이름·연락처·주소는 <b>후원자에게 공개되지 않습니다</b>.<br>
+  협의체 위원만 열람할 수 있으며 모든 열람은 기록됩니다.
+</p>
+
+<a class="btn ghost" href="/donor">목록으로</a>
+{% endblock %}

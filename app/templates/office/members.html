@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="sectit">위원 위촉 관리</div>
+{% for m in members %}
+<div class="card" style="cursor:default">
+  <div class="row">
+    <div class="thumb ic-svg">{{ icon('user') }}</div>
+    <div class="meta">
+      <h3>{{ m.name }}</h3>
+      <div class="sub">{{ m.email }}{% if m.appointed_note %} · {{ m.appointed_note }}{% endif %}</div>
+      <div class="foot">
+        <span class="tag {{ 'fill' if m.is_active else 'line' }}">{{ '활동 중' if m.is_active else '위촉 해제' }}</span>
+        <span class="tag soft">케이스 {{ case_counts.get(m.id, 0) }}건</span>
+        {% if open_case_counts.get(m.id) %}
+        <span class="tag line">미종결 {{ open_case_counts[m.id] }}건</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% if open_case_counts.get(m.id) %}
+  <form method="post" action="/office/members/{{ m.id }}/handover">
+    <div class="field" style="margin:11px 0 0">
+      <label>미종결 케이스 인계</label>
+      <select name="to_member_id" required>
+        <option value="">인계받을 위원 선택</option>
+        {% for other in members if other.id != m.id and other.is_active %}
+        <option value="{{ other.id }}">{{ other.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn ghost sm" type="submit">{{ open_case_counts[m.id] }}건 인계</button>
+  </form>
+  <p class="legend">
+    담당 케이스를 남긴 채 위촉을 해제하면 그 가정은 아무도 손댈 수 없게 됩니다.
+  </p>
+  {% endif %}
+  <form method="post" action="/office/members/{{ m.id }}/toggle">
+    <button class="btn ghost" type="submit">{{ '위촉 해제' if m.is_active else '위촉 복구' }}</button>
+  </form>
+</div>
+{% else %}
+<div class="empty">등록된 위원이 없습니다.</div>
+{% endfor %}
+
+<div class="sectit">후원자</div>
+{% for d in donors %}
+<div class="card" style="cursor:default;padding:11px 13px">
+  <div class="meta">
+    <h3 style="font-size:13px">{{ d.name }}</h3>
+    <div class="sub">{{ d.shop.name if d.shop else '가게 미등록' }} · {{ d.email }}</div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
