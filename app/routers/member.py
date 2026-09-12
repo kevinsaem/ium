@@ -24,6 +24,8 @@ from app.models import (
     User,
 )
 from app.rendering import flash, render
+from app.reporting import build_monthly_report
+from app.timeutil import current_month
 
 router = APIRouter(prefix="/member", dependencies=[Depends(require_role(Role.MEMBER))])
 member_dep = require_role(Role.MEMBER)
@@ -392,56 +394,22 @@ def cancel_match(
 
 @router.get("/report")
 def report(request: Request, user: User = Depends(member_dep), db: Session = Depends(get_db)):
-    """월간 활동 보고서 초안 — 비식별 코드만으로 생성된다."""
-    now = datetime.now(timezone.utc)
+    """월간 활동 보고서 초안 — 비식별 코드만으로 생성된다. 계산은 동 전체 보고서와 같다."""
+    year, month = current_month()
     my_cases = list(db.scalars(select(Case).where(Case.member_id == user.id)).all())
     case_ids = [c.id for c in my_cases]
-
     matches = (
         list(db.scalars(select(Match).where(Match.case_id.in_(case_ids))).all()) if case_ids else []
     )
-    delivered = [
-        m
-        for m in matches
-        if m.status is MatchStatus.DELIVERED
-        and m.delivered_at
-        and (m.delivered_at.year, m.delivered_at.month) == (now.year, now.month)
-    ]
-
-    summary = {
-        "cases": len(my_cases),
-        "matches": len(matches),
-        "delivered": len(delivered),
-        "urgent": sum(1 for c in my_cases if c.is_urgent),
-        "public_support": sum(1 for c in my_cases if c.public_support_linked),
-        "shops": len({m.offer.shop_id for m in delivered}),
-    }
-    period_label = f"{now.year}년 {now.month}월"
-
-    lines = [
-        f"보고 기간: {period_label}",
-        f"담당 위원: {user.name}",
-        "",
-        f"1. 발굴 케이스 {summary['cases']}건 (긴급 {summary['urgent']}건)",
-        f"2. 매칭 제안 {summary['matches']}건, 이 중 당월 전달 완료 {summary['delivered']}건",
-        f"3. 참여 나눔가게 {summary['shops']}곳",
-        f"4. 공적지원 연계 {summary['public_support']}건",
-        "",
-        "당월 전달 내역:",
-    ]
-    lines += [
-        f"  - {m.case.code} / {m.case.need_summary} ← {m.offer.title} ({m.offer.shop.name})"
-        for m in delivered
-    ] or ["  - 없음"]
-    lines += ["", "※ 본 보고서는 비식별 코드만 사용하여 자동 생성되었습니다."]
+    monthly = build_monthly_report(my_cases, matches, year, month, [f"담당 위원: {user.name}"])
 
     return render(
         request,
         "member/report.html",
         user,
         "report",
-        summary=summary,
-        delivered=delivered,
-        period_label=period_label,
-        report_text="\n".join(lines),
+        summary=monthly.summary,
+        delivered=monthly.delivered,
+        period_label=monthly.period_label,
+        report_text=monthly.text,
     )

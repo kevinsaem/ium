@@ -10,11 +10,16 @@ from fastapi.templating import Jinja2Templates
 from app.config import settings
 from app.icons import icon
 from app.models import Role, User
+from app.timeutil import to_local
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 templates.env.globals["icon"] = icon
 templates.env.globals["settings"] = settings
+# 저장은 UTC, 화면은 한국 시간. 템플릿에서 strftime 을 직접 부르지 말고 이 필터를 쓴다.
+templates.env.filters["local"] = (
+    lambda dt, fmt="%Y-%m-%d %H:%M": to_local(dt).strftime(fmt) if dt else ""
+)
 
 TABS: dict[Role, list[dict[str, str]]] = {
     Role.DONOR: [
@@ -31,6 +36,7 @@ TABS: dict[Role, list[dict[str, str]]] = {
         {"key": "dash", "href": "/office", "icon": "building", "label": "현황"},
         {"key": "members", "href": "/office/members", "icon": "users", "label": "위원"},
         {"key": "badges", "href": "/office/badges", "icon": "award", "label": "인증"},
+        {"key": "records", "href": "/office/report", "icon": "doc", "label": "기록"},
     ],
 }
 

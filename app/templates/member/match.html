@@ -84,7 +84,7 @@
 <div class="card" style="cursor:default">
   <div class="meta">
     <h3>{{ m.case.code }} ← {{ m.offer.title }}</h3>
-    <div class="sub">{{ m.offer.shop.name }} · {{ m.delivered_at.strftime('%Y-%m-%d') if m.delivered_at }}</div>
+    <div class="sub">{{ m.offer.shop.name }} · {{ m.delivered_at | local('%Y-%m-%d') }}</div>
   </div>
 </div>
 {% else %}

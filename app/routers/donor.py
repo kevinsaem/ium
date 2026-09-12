@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
@@ -26,6 +24,7 @@ from app.models import (
     User,
 )
 from app.rendering import flash, render
+from app.timeutil import current_month, in_month
 
 router = APIRouter(prefix="/donor", dependencies=[Depends(require_role(Role.DONOR))])
 donor_dep = require_role(Role.DONOR)
@@ -179,12 +178,8 @@ def mine(request: Request, user: User = Depends(donor_dep), db: Session = Depend
         for o in offers
     }
 
-    now = datetime.now(timezone.utc)
-    this_month = sum(
-        1
-        for m in delivered
-        if m.delivered_at and (m.delivered_at.year, m.delivered_at.month) == (now.year, now.month)
-    )
+    year, month = current_month()
+    this_month = sum(1 for m in delivered if in_month(m.delivered_at, year, month))
 
     thanks = (
         list(
@@ -210,7 +205,7 @@ def mine(request: Request, user: User = Depends(donor_dep), db: Session = Depend
         reopenable=reopenable,
         credits=credits,
         thanks=thanks,
-        period_label=f"{now.year}년",
+        period_label=f"{year}년",
         stats={
             "total": len(delivered),
             # 나눔지수: 전달 완료 건수에 긴급 케이스 가중치를 얹은 단순 지표
@@ -276,8 +271,7 @@ def request_credit(
     db: Session = Depends(get_db),
 ):
     """증빙 신청 접수. 발급 판단은 운영자가 수기로 한다 (자동 발급 금지)."""
-    now = datetime.now(timezone.utc)
-    period = f"{now.year}년"
+    period = f"{current_month()[0]}년"
     credit_kind = parse_enum(CreditKind, kind, "증빙 종류")
 
     existing = db.scalar(

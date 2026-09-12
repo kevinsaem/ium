@@ -62,8 +62,14 @@
   {% if c.status.value == 'requested' %}
   <form method="post" action="/office/credits/{{ c.id }}/process">
     <div class="field" style="margin:11px 0 0">
-      <input name="note" placeholder="처리 메모">
+      <input name="note" placeholder="{{ '확인 근거 (예: 2026-09-10 기획재정부 고시 확인)' if c.kind.value == 'donation' else '처리 메모' }}">
     </div>
+    {% if c.kind.value == 'donation' %}
+    <label class="check" style="margin-top:9px">
+      <input type="checkbox" name="requirement_confirmed" value="1">
+      법정기부금단체 요건을 직접 확인했습니다
+    </label>
+    {% endif %}
     <div class="btnrow">
       <button class="btn sm" type="submit" name="decision" value="issued" style="flex:1;width:100%">발급</button>
       <button class="btn ghost sm" type="submit" name="decision" value="rejected" style="flex:1;width:100%">요건 미충족</button>

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="btnrow" style="margin-top:0">
+  <a class="btn ghost sm" href="/office/report" style="flex:1">월간 보고서</a>
+  <a class="btn sm" href="/office/audit" style="flex:1">열람 기록</a>
+</div>
+
+<form method="get" action="/office/audit" style="margin-top:14px">
+  <div class="field">
+    <label>기간</label>
+    <select name="month">
+      <option value="all" {{ 'selected' if month_value == 'all' }}>전체 기간</option>
+      {% for value, label in month_options %}
+      <option value="{{ value }}" {{ 'selected' if value == month_value }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>누가</label>
+    <select name="actor">
+      <option value="">전체</option>
+      {% for u in actors %}
+      <option value="{{ u.id }}" {{ 'selected' if actor_value == u.id | string }}>{{ u.name }} ({{ u.role.tag }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>무엇을</label>
+    <select name="action">
+      <option value="">전체</option>
+      {% for key, label in action_labels.items() %}
+      <option value="{{ key }}" {{ 'selected' if action_value == key }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn ghost" type="submit">조회</button>
+</form>
+
+<div class="sectit">{{ period_text }} · {{ total }}건</div>
+{% for log in logs %}
+<div class="card" style="cursor:default;padding:11px 13px">
+  <div class="meta">
+    <h3 style="font-size:12.5px">{{ log.actor.name }} · {{ action_labels.get(log.action, log.action) }} · {{ log.case.code }}</h3>
+    <div class="sub">{{ log.accessed_at | local }} · {{ log.reason }}</div>
+  </div>
+</div>
+{% else %}
+<div class="empty" style="padding:22px">조건에 맞는 기록이 없습니다.</div>
+{% endfor %}
+
+{% if pages > 1 %}
+<div class="btnrow">
+  {% if prev_url %}<a class="btn ghost sm" href="{{ prev_url }}" style="flex:1">이전</a>{% endif %}
+  <span class="legend" style="flex:1;text-align:center;align-self:center;margin:0">{{ page }} / {{ pages }}</span>
+  {% if next_url %}<a class="btn ghost sm" href="{{ next_url }}" style="flex:1">다음</a>{% endif %}
+</div>
+{% endif %}
+
+<p class="legend">
+  운영자는 <b>열람했다는 사실과 사유</b>만 볼 수 있고 열람된 내용은 볼 수 없습니다. 시각은 한국 시간입니다.
+</p>
+{% endblock %}

@@ -92,7 +92,7 @@
 <div class="card" style="cursor:default;padding:11px 13px">
   <div class="meta">
     <h3 style="font-size:12.5px">{{ log.actor.name }} · {{ {'read': '열람', 'write': '수정', 'handover': '담당 변경'}.get(log.action, log.action) }}</h3>
-    <div class="sub">{{ log.accessed_at.strftime('%Y-%m-%d %H:%M') }} · {{ log.reason }}</div>
+    <div class="sub">{{ log.accessed_at | local }} · {{ log.reason }}</div>
   </div>
 </div>
 {% endfor %}

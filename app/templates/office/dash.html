@@ -45,17 +45,18 @@
   {% endfor %}
 </table>
 
-<div class="sectit">식별정보 열람 감사 로그</div>
+<div class="sectit">최근 열람 기록</div>
 {% for log in audit_logs %}
 <div class="card" style="cursor:default;padding:11px 13px">
   <div class="meta">
-    <h3 style="font-size:12.5px">{{ log.actor.name }} · {{ {'read': '열람', 'write': '수정', 'handover': '담당 변경'}.get(log.action, log.action) }} · 케이스 #{{ log.case_id }}</h3>
-    <div class="sub">{{ log.accessed_at.strftime('%Y-%m-%d %H:%M') }} · {{ log.reason }}</div>
+    <h3 style="font-size:12.5px">{{ log.actor.name }} · {{ {'read': '열람', 'write': '수정', 'handover': '담당 변경'}.get(log.action, log.action) }} · {{ log.case.code }}</h3>
+    <div class="sub">{{ log.accessed_at | local }} · {{ log.reason }}</div>
   </div>
 </div>
 {% else %}
 <div class="empty" style="padding:22px">아직 열람 기록이 없습니다.</div>
 {% endfor %}
+<a class="btn ghost" href="/office/audit">전체 열람 기록 · 기간별 조회</a>
 <p class="legend">
   운영자는 <b>열람했다는 사실</b>만 볼 수 있고 <b>열람된 내용</b>은 볼 수 없습니다.
 </p>

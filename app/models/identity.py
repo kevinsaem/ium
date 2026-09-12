@@ -67,6 +67,8 @@ class IdentityAccessLog(Base):
     )
 
     actor: Mapped["User"] = relationship()
+    # 운영자 화면은 case_id 대신 비식별 코드로 보여 준다. CaseIdentity 까지 따라가지 않는다.
+    case: Mapped["Case"] = relationship()
 
     def __repr__(self) -> str:
         return f"<IdentityAccessLog {self.action} case={self.case_id} by={self.actor_id}>"
