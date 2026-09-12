@@ -16,6 +16,9 @@ router = APIRouter()
 
 
 def _demo_users(db: Session) -> list[User]:
+    """로그인 화면의 계정 바로가기 — 개발 전용. 운영에서 켜 두면 위원·운영자 명단이 공개된다."""
+    if settings.is_production:
+        return []
     return list(db.scalars(select(User).order_by(User.role, User.id)).all())
 
 

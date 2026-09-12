@@ -16,7 +16,7 @@ cp .env.example .env                            # 그리고 아래 '키 생성' 
 .venv/Scripts/python -m uvicorn app.main:app --reload
 ```
 
-`.env` 의 `IUM_IDENTITY_KEY` 는 비워 두면 개발용 고정키가 쓰이고 경고가 뜹니다. 새로 뽑으려면:
+`.env` 의 `IUM_IDENTITY_KEY` 는 비워 두면 개발용 고정키가 쓰이고 경고가 뜹니다 (`IUM_ENV=production` 에서는 경고가 아니라 **시작 거부**). 새로 뽑으려면:
 
 ```bash
 .venv/Scripts/python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"
@@ -147,11 +147,17 @@ tests/
 
 ## 운영 배포 전 체크리스트
 
-- [ ] `IUM_IDENTITY_KEY` 새로 생성 — `python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"`
+`IUM_ENV=production` 으로 띄우면 ①② 가 개발용 값일 때 **서버가 시작하지 않습니다.** 저장소가
+공개되어 있어 소스에 적힌 개발용 키는 비밀이 아니기 때문입니다 — 그 키로 운영이 한 번 돌면 그 사이
+저장된 식별정보는 공개 키로 잠긴 셈입니다. 같은 모드에서 로그인 화면의 계정 목록이 숨겨지고,
+세션 쿠키가 HTTPS 전용이 되고, `seed.py` 실행이 거부됩니다.
+
+- [ ] `IUM_ENV=production`
+- [ ] ① `IUM_IDENTITY_KEY` 새로 생성 — `python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"`
       (키를 잃으면 기존 식별정보는 영구 복호화 불가)
-- [ ] `IUM_SECRET_KEY` 교체
+- [ ] ② `IUM_SECRET_KEY` 교체 (32자 이상) — `python -c "import secrets;print(secrets.token_urlsafe(48))"`
 - [x] ~~Alembic 마이그레이션 도입~~
 - [ ] SQLite → PostgreSQL 전환 (초기 리비전 검토 필요)
-- [ ] HTTPS 강제 + 세션 쿠키 `secure=True`
+- [ ] HTTPS 적용 (세션 쿠키는 production 모드에서 자동으로 `secure`)
 - [ ] 시·행정복지센터의 개인정보 처리 사전 승인
-- [ ] `seed.py` 의 개발용 계정 전량 삭제
+- [ ] 운영 DB 에 `seed.py` 를 돌린 적이 없는지 확인 (production 모드에서는 실행 자체가 거부됨)

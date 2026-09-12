@@ -15,6 +15,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app import identity_service, matching
+from app.config import settings
 from app.db import SessionLocal, engine, upgrade_to_head
 from app.icons import KIND_ICON
 from app.models import (
@@ -62,7 +63,17 @@ CASES = [
 ]
 
 
+def _refuse_in_production() -> None:
+    """운영 DB 에는 돌리지 않는다 — 비밀번호가 공개된 가짜 계정이 들어가고, --reset 은 DB 파일을 지운다."""
+    if settings.is_production:
+        sys.exit(
+            "IUM_ENV=production 에서는 시드를 실행하지 않습니다. 비밀번호가 공개된 가짜 계정이 "
+            "운영 DB 에 들어가고, --reset 은 DB 파일을 지웁니다."
+        )
+
+
 def seed() -> None:
+    _refuse_in_production()
     upgrade_to_head()  # 스키마는 Alembic 이 만든다
     db = SessionLocal()
     try:
@@ -156,6 +167,7 @@ def seed() -> None:
 
 
 if __name__ == "__main__":
+    _refuse_in_production()  # --reset 이 파일을 지우기 전에 막아야 한다
     if "--reset" in sys.argv:
         engine.dispose()
         db_file = Path("ium.db")

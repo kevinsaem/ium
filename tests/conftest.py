@@ -13,6 +13,8 @@ _DB_PATH = _TMP_DIR / "test.db"
 os.environ["IUM_DATABASE_URL"] = f"sqlite:///{_DB_PATH.as_posix()}"
 os.environ.setdefault("IUM_SECRET_KEY", "test-secret")
 os.environ.setdefault("IUM_MATCH_APPROVAL_MODE", "committee")
+# 셸에 IUM_ENV=production 이 남아 있어도 테스트는 개발 모드로 돈다. 운영 모드는 test_production.py 가 따로 띄운다.
+os.environ["IUM_ENV"] = "development"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

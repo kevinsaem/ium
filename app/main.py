@@ -29,7 +29,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="이음 · 지역사회보장협의체 나눔 매칭", docs_url="/api/docs", lifespan=lifespan)
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, same_site="lax")
+# 운영에서는 HTTPS 로만 쿠키를 보낸다. 개발(http://127.0.0.1)에서 켜면 로그인이 안 되므로 모드로 가른다.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.secret_key,
+    same_site="lax",
+    https_only=settings.is_production,
+)
 app.mount(
     "/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static"
 )

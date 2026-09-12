@@ -6,7 +6,6 @@
 """
 from __future__ import annotations
 
-import base64
 import hashlib
 import hmac
 import os
@@ -14,7 +13,7 @@ import warnings
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from app.config import settings
+from app.config import DEV_IDENTITY_KEY, settings
 
 # --- 비밀번호 -------------------------------------------------------------
 
@@ -46,13 +45,16 @@ def verify_password(password: str, stored: str) -> bool:
 def _load_fernet() -> Fernet:
     key = settings.identity_key.strip()
     if not key:
+        if settings.is_production:
+            # config 에서 이미 시작을 거부하지만, 이 키만큼은 여기서 한 번 더 막는다.
+            raise RuntimeError("IUM_IDENTITY_KEY 없이 운영 모드로 시작할 수 없습니다.")
         warnings.warn(
             "IUM_IDENTITY_KEY 가 비어 있어 개발용 고정키를 사용합니다. "
             "운영 배포 전 반드시 .env 에 새 키를 생성해 넣으세요.",
             RuntimeWarning,
             stacklevel=2,
         )
-        key = base64.urlsafe_b64encode(hashlib.sha256(b"ium-dev-identity-key").digest()).decode()
+        key = DEV_IDENTITY_KEY
     return Fernet(key.encode())
 
 

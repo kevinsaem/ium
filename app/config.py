@@ -5,9 +5,13 @@ MATCH_APPROVAL_MODE 는 슬라이드 6 안건 ⑤(매칭 승인 프로세스)가
 """
 from __future__ import annotations
 
+import base64
+import hashlib
 import os
 from dataclasses import dataclass
 from pathlib import Path
+
+from cryptography.fernet import Fernet
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -51,5 +55,62 @@ class Settings:
     # 파일럿 대상 동
     dong: str = _env("IUM_DONG", "선부3동")
 
+    # development | production — production 에서는 개발용 값으로 시작하지 않는다.
+    env: str = _env("IUM_ENV", "development")
+
+    @property
+    def is_production(self) -> bool:
+        return self.env.strip().lower() == "production"
+
+
+# 소스에 적혀 있는 값들. 저장소가 공개되어 있으므로 이 값들은 비밀이 아니다.
+DEV_SECRET_KEYS = {"dev-only-insecure-session-secret", "change-me-session-secret"}
+DEV_IDENTITY_KEY = base64.urlsafe_b64encode(hashlib.sha256(b"ium-dev-identity-key").digest()).decode()
+MIN_SECRET_LENGTH = 32
+
+
+def production_problems(s: Settings) -> list[str]:
+    """운영에 올리면 안 되는 설정을 사람이 읽을 수 있는 문장으로 돌려준다."""
+    problems = []
+
+    secret = s.secret_key.strip()
+    if secret in DEV_SECRET_KEYS or len(secret) < MIN_SECRET_LENGTH:
+        problems.append(
+            "IUM_SECRET_KEY 가 개발용 값이거나 32자보다 짧습니다. 이 값을 아는 사람은 위원 세션을 "
+            '위조할 수 있습니다. 생성: python -c "import secrets;print(secrets.token_urlsafe(48))"'
+        )
+
+    key = s.identity_key.strip()
+    if not key or key == DEV_IDENTITY_KEY:
+        problems.append(
+            "IUM_IDENTITY_KEY 가 비어 있거나 개발용 고정키입니다. 이 키는 소스에서 계산할 수 있어 "
+            "암호화된 식별정보를 누구나 풀 수 있습니다. 생성: "
+            'python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"'
+        )
+    else:
+        try:
+            Fernet(key.encode())
+        except ValueError:
+            problems.append("IUM_IDENTITY_KEY 형식이 올바르지 않습니다 (Fernet 키가 아닙니다).")
+
+    return problems
+
+
+def enforce_production_settings(s: Settings) -> None:
+    """운영 모드에서 개발용 설정이면 경고가 아니라 시작 거부.
+
+    경고는 로그에 묻힌다. 개발용 키로 운영이 한 번 돌기 시작하면 그 사이 저장된 식별정보는
+    이미 공개 키로 잠긴 셈이라, 나중에 키를 바꿔도 되돌릴 수 없다.
+    """
+    if not s.is_production:
+        return
+    problems = production_problems(s)
+    if problems:
+        raise RuntimeError(
+            "IUM_ENV=production 인데 운영에 쓸 수 없는 설정이 있어 시작하지 않습니다:\n"
+            + "\n".join(f"  - {p}" for p in problems)
+        )
+
 
 settings = Settings()
+enforce_production_settings(settings)
