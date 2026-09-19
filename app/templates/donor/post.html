@@ -9,7 +9,7 @@
   <div class="field"><label>가게 이름</label><input name="name" required></div>
   <div class="field"><label>업종</label><input name="category" placeholder="예) 분식 · 미용 · 철물"></div>
   <div class="field"><label>주소</label><input name="address"></div>
-  <div class="field"><label>도보 소요(분)</label><input name="walk_minutes" type="number" min="1" max="60"></div>
+  <div class="field"><label>도보 소요(분)</label><input name="walk_minutes" type="number" min="{{ walk_minutes_range[0] }}" max="{{ walk_minutes_range[1] }}"></div>
   <button class="btn" type="submit">가게 등록하기</button>
 </form>
 {% else %}

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app import identity_service, matching
 from app.db import get_db
 from app.deps import require_role
+from app.forms import HOUSEHOLD_SIZE, parse_optional_int
 from app.models import (
     Case,
     CaseStatus,
@@ -63,7 +64,9 @@ def cases(request: Request, user: User = Depends(member_dep), db: Session = Depe
             .order_by(Case.is_urgent.desc(), Case.created_at.desc())
         ).all()
     )
-    return render(request, "member/cases.html", user, "cases", cases=rows)
+    return render(
+        request, "member/cases.html", user, "cases", cases=rows, household_size_range=HOUSEHOLD_SIZE
+    )
 
 
 @router.post("/cases")
@@ -86,7 +89,7 @@ def create_case(
         code=code,
         need_summary=need_summary.strip(),
         situation_note=situation_note.strip() or None,
-        household_size=int(household_size) if household_size.strip().isdigit() else None,
+        household_size=parse_optional_int(household_size, "가구원 수", HOUSEHOLD_SIZE),
         is_urgent=bool(is_urgent),
         member_id=user.id,
     )

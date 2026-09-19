@@ -44,7 +44,7 @@
   </div>
   <div class="field">
     <label>가구원 수</label>
-    <input name="household_size" type="number" min="1" max="20">
+    <input name="household_size" type="number" min="{{ household_size_range[0] }}" max="{{ household_size_range[1] }}">
   </div>
   <label class="check">
     <input type="checkbox" name="is_urgent" value="1"> 긴급 케이스로 표시

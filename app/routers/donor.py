@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
 from app.deps import require_role
-from app.forms import parse_enum
+from app.forms import WALK_MINUTES, parse_enum, parse_optional_int
 from app.icons import KIND_ICON
 from app.models import (
     Credit,
@@ -81,6 +81,7 @@ def post_form(request: Request, user: User = Depends(donor_dep), db: Session = D
         user,
         "post",
         shop=_shop(db, user),
+        walk_minutes_range=WALK_MINUTES,
         offer_kinds=list(OfferKind),
         delivery_methods=list(DeliveryMethod),
     )
@@ -105,7 +106,7 @@ def create_shop(
             name=name.strip(),
             category=category.strip() or None,
             address=address.strip() or None,
-            walk_minutes=int(walk_minutes) if walk_minutes.strip().isdigit() else None,
+            walk_minutes=parse_optional_int(walk_minutes, "도보 소요", WALK_MINUTES),
         )
     )
     db.commit()
