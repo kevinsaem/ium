@@ -8,11 +8,12 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app import identity_service
+from app import accounts, identity_service
 from app.config import settings
 from app.db import get_db
 from app.deps import require_role
 from app.models import (
+    AccountEvent,
     Case,
     CaseStatus,
     Credit,
@@ -266,6 +267,14 @@ def members(request: Request, user: User = Depends(office_dep), db: Session = De
             .group_by(Case.member_id)
         ).all()
     )
+    events = list(
+        db.scalars(
+            select(AccountEvent)
+            .options(selectinload(AccountEvent.user), selectinload(AccountEvent.actor))
+            .order_by(AccountEvent.created_at.desc(), AccountEvent.id.desc())
+            .limit(30)
+        ).all()
+    )
     return render(
         request,
         "office/members.html",
@@ -275,7 +284,67 @@ def members(request: Request, user: User = Depends(office_dep), db: Session = De
         donors=donor_rows,
         case_counts=counts,
         open_case_counts=open_counts,
+        events=events,
+        event_labels=accounts.ACTION_LABELS,
     )
+
+
+def _show_temp_password(request: Request, user: User, member: User, temp: str, action: str):
+    """임시 비밀번호는 이 응답 하나에만 실어 보낸다.
+
+    리다이렉트하려면 어딘가에 얹어 넘겨야 하고, 그 '어딘가'는 세션 쿠키다 — 서명만 되어 있어
+    열어 보면 그대로 읽힌다. 식별정보 열람을 직접 렌더로 바꾼 것과 같은 이유다.
+    """
+    response = render(
+        request,
+        "office/account_issued.html",
+        user,
+        "members",
+        member=member,
+        temp_password=temp,
+        action=action,
+    )
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+    response.headers["Pragma"] = "no-cache"
+    return response
+
+
+@router.post("/members")
+def issue_member_account(
+    request: Request,
+    name: str = Form(""),
+    email: str = Form(""),
+    note: str = Form(""),
+    user: User = Depends(office_dep),
+    db: Session = Depends(get_db),
+):
+    """위원 계정 발급 — 위촉과 함께 운영자가 만든다 (위원회 안건 07)."""
+    try:
+        member, temp = accounts.issue_member(
+            db, user, name=name, email=email, note=note.strip() or None
+        )
+    except accounts.AccountError as exc:
+        flash(request, str(exc))
+        return RedirectResponse("/office/members", status_code=303)
+
+    return _show_temp_password(request, user, member, temp, "issue")
+
+
+@router.post("/members/{member_id}/reset")
+def reset_member_password(
+    member_id: int, request: Request, user: User = Depends(office_dep), db: Session = Depends(get_db)
+):
+    """비밀번호 초기화.
+
+    운영자가 위원 계정에 들어갈 수 있는 유일한 길이라, 조용히 일어나지 않게 계정 기록에 남긴다.
+    초기화된 계정은 첫 로그인에서 비밀번호를 다시 정해야 하므로 위원이 알아차린다.
+    """
+    member = db.get(User, member_id)
+    if member is None or member.role is not Role.MEMBER:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="위원을 찾을 수 없습니다.")
+
+    temp = accounts.reset_password(db, user, member)
+    return _show_temp_password(request, user, member, temp, "reset")
 
 
 @router.post("/members/{member_id}/toggle")
@@ -303,6 +372,7 @@ def toggle_member(
             return RedirectResponse("/office/members", status_code=303)
 
     member.is_active = not member.is_active
+    accounts.log_event(db, member, "reactivate" if member.is_active else "deactivate", user)
     db.commit()
     flash(request, f"{member.name} 위원을 {'위촉 복구' if member.is_active else '위촉 해제'}했습니다.")
     return RedirectResponse("/office/members", status_code=303)

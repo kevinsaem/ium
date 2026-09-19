@@ -9,6 +9,7 @@ from app.models.base import (
     OfferStatus,
     Role,
 )
+from app.models.account import AccountEvent
 from app.models.case import Case
 from app.models.credit import Credit, ThanksMessage
 from app.models.identity import CaseIdentity, IdentityAccessLog
@@ -20,5 +21,5 @@ __all__ = [
     "Base", "Role", "OfferKind", "OfferStatus", "DeliveryMethod",
     "CaseStatus", "MatchStatus", "CreditKind", "CreditStatus",
     "User", "Shop", "Offer", "Case", "CaseIdentity", "IdentityAccessLog",
-    "Match", "MatchApproval", "Credit", "ThanksMessage",
+    "Match", "MatchApproval", "Credit", "ThanksMessage", "AccountEvent",
 ]

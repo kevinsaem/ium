@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String, Text
+from sqlalchemy import Boolean, Enum, ForeignKey, String, Text, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, Role, TimestampMixin
@@ -30,6 +30,8 @@ class User(Base, TimestampMixin):
 
     # 위원 위촉 관리 (운영자가 승인)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # 운영자가 발급하거나 초기화한 임시 비밀번호로는 비밀번호 변경 화면만 쓸 수 있다.
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     appointed_note: Mapped[str | None] = mapped_column(Text, default=None)
 
     # Shop 은 user 를 두 번 참조한다(owner_id, certified_by_id). 소유 관계만 연결한다.

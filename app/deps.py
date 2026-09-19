@@ -30,8 +30,14 @@ def current_user(user: User | None = Depends(current_user_optional)) -> User:
     return user
 
 
+class PasswordChangeRequired(Exception):
+    """임시 비밀번호로 들어온 사람은 비밀번호를 바꾸기 전까지 다른 화면을 쓸 수 없다."""
+
+
 def require_role(*roles: Role) -> Callable[[User], User]:
     def _dep(user: User = Depends(current_user)) -> User:
+        if user.must_change_password:
+            raise PasswordChangeRequired()
         if user.role not in roles:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,

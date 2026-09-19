@@ -34,13 +34,40 @@
     담당 케이스를 남긴 채 위촉을 해제하면 그 가정은 아무도 손댈 수 없게 됩니다.
   </p>
   {% endif %}
-  <form method="post" action="/office/members/{{ m.id }}/toggle">
-    <button class="btn ghost" type="submit">{{ '위촉 해제' if m.is_active else '위촉 복구' }}</button>
-  </form>
+  <div class="btnrow">
+    <form method="post" action="/office/members/{{ m.id }}/toggle">
+      <button class="btn ghost sm" type="submit" style="width:100%">{{ '위촉 해제' if m.is_active else '위촉 복구' }}</button>
+    </form>
+    <form method="post" action="/office/members/{{ m.id }}/reset"
+          onsubmit="return confirm('{{ m.name }} 위원의 비밀번호를 임시 비밀번호로 바꿉니다. 지금 쓰던 비밀번호는 못 쓰게 됩니다. 계속할까요?')">
+      <button class="btn ghost sm" type="submit" style="width:100%">비밀번호 초기화</button>
+    </form>
+  </div>
 </div>
 {% else %}
 <div class="empty">등록된 위원이 없습니다.</div>
 {% endfor %}
+
+<div class="sectit">위원 계정 발급</div>
+<form method="post" action="/office/members">
+  <div class="field">
+    <label>이름</label>
+    <input name="name" placeholder="예) 이관희" required>
+  </div>
+  <div class="field">
+    <label>이메일 (로그인 아이디)</label>
+    <input type="email" name="email" placeholder="예) member@example.kr" required>
+  </div>
+  <div class="field">
+    <label>위촉 메모 (선택)</label>
+    <input name="note" placeholder="예) 2026-09-19 정기회의 위촉">
+  </div>
+  <button class="btn" type="submit">계정 발급하고 임시 비밀번호 받기</button>
+</form>
+<p class="legend">
+  발급하면 <b>임시 비밀번호가 한 번만</b> 화면에 표시됩니다. 위원께 직접 전해 주세요.<br>
+  위원은 첫 로그인에서 새 비밀번호를 정해야 앱을 쓸 수 있습니다.
+</p>
 
 <div class="sectit">후원자</div>
 {% for d in donors %}
@@ -50,5 +77,25 @@
     <div class="sub">{{ d.shop.name if d.shop else '가게 미등록' }} · {{ d.email }}</div>
   </div>
 </div>
+{% else %}
+<div class="empty" style="padding:22px">등록된 후원자가 없습니다.</div>
 {% endfor %}
+
+<div class="sectit">계정 기록</div>
+{% for e in events %}
+<div class="card" style="cursor:default;padding:11px 13px">
+  <div class="meta">
+    <h3 style="font-size:12.5px">{{ e.user.name }} · {{ event_labels.get(e.action, e.action) }}</h3>
+    <div class="sub">
+      {{ e.created_at | local }} · {{ e.actor.name if e.actor else '서버 명령' }}
+      {%- if e.note %} · {{ e.note }}{% endif %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="empty" style="padding:22px">아직 계정 기록이 없습니다.</div>
+{% endfor %}
+<p class="legend">
+  비밀번호를 초기화하면 그 계정으로 로그인할 수 있게 됩니다. 그래서 발급·초기화는 모두 여기 남습니다.
+</p>
 {% endblock %}

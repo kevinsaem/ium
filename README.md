@@ -121,10 +121,14 @@ app/
     match.py       Match · MatchApproval
     credit.py      Credit(증빙) · ThanksMessage(익명 감사)
   identity_service.py   식별정보 접근의 유일한 통로
+  accounts.py           계정 발급 · 비밀번호 (운영 계정이 생기는 유일한 길)
+  create_office.py      첫 운영자 만들기 — python -m app.create_office
+  reporting.py          월간 보고서 계산 (위원 · 동 전체 공용)
+  timeutil.py           저장은 UTC, 화면과 '이번 달'은 한국 시간
   permissions.py        권한 매트릭스
   matching.py           매칭 승인 규칙
   security.py           scrypt 해시 · Fernet 암복호화
-  routers/       auth · donor · member · office
+  routers/       auth · account · donor · member · office
   templates/     Jinja2 (9개 화면, 프로토타입 구조 그대로)
 migrations/      Alembic 리비전
 tests/
@@ -161,3 +165,23 @@ tests/
 - [ ] HTTPS 적용 (세션 쿠키는 production 모드에서 자동으로 `secure`)
 - [ ] 시·행정복지센터의 개인정보 처리 사전 승인
 - [ ] 운영 DB 에 `seed.py` 를 돌린 적이 없는지 확인 (production 모드에서는 실행 자체가 거부됨)
+- [ ] 첫 운영자 계정 만들기 (아래)
+
+### 운영 계정 만들기
+
+운영 모드에서는 `seed.py` 가 막혀 있어 계정이 생기는 길은 두 개뿐입니다.
+
+```bash
+python -m alembic upgrade head
+python -m app.create_office --email office@example.kr --name "협의체 사무국"
+```
+
+비밀번호는 명령줄 인자로 받지 않습니다 — 셸 기록과 프로세스 목록에 남기 때문입니다.
+화면에 보이지 않게 두 번 입력받습니다.
+
+위원 계정은 이 운영자가 **위원 관리** 화면에서 발급합니다. 임시 비밀번호가 화면에 한 번만
+표시되고, 위원은 첫 로그인에서 새 비밀번호를 정해야 다른 화면을 쓸 수 있습니다. 발급·초기화·
+위촉 해제는 모두 같은 화면의 **계정 기록**에 남습니다 — 비밀번호를 초기화하면 운영자가 그
+계정으로 들어갈 수 있게 되므로, 조용히 일어나지 않게 하기 위해서입니다.
+
+후원자 계정은 위원회 안건 07(계정 발급 방식)이 정해진 뒤에 만듭니다.

@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import secrets
 import warnings
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -37,6 +38,27 @@ def verify_password(password: str, stored: str) -> bool:
         password.encode(), salt=bytes.fromhex(salt_hex), n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P
     )
     return hmac.compare_digest(dk.hex(), dk_hex)
+
+
+MIN_PASSWORD_LENGTH = 10
+# 헷갈리는 글자(0·o, 1·l·i)를 뺐다. 운영자가 소리 내어 불러 주거나 손으로 적어 전하기 때문이다.
+_TEMP_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
+
+
+def generate_temp_password() -> str:
+    """임시 비밀번호 — 12자를 4자씩 끊어 'k7mq-3xtp-9hva' 처럼 읽기 쉽게."""
+    chars = "".join(secrets.choice(_TEMP_ALPHABET) for _ in range(12))
+    return "-".join(chars[i : i + 4] for i in range(0, 12, 4))
+
+
+def validate_new_password(password: str, *, email: str) -> str | None:
+    """새 비밀번호의 문제를 사람이 읽을 문장으로 돌려준다. 문제가 없으면 None."""
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return f"비밀번호는 {MIN_PASSWORD_LENGTH}자 이상이어야 합니다."
+    lowered = password.strip().lower()
+    if lowered in (email.lower(), email.split("@")[0].lower()):
+        return "이메일과 같은 비밀번호는 쓸 수 없습니다."
+    return None
 
 
 # --- 식별정보 암호화 ------------------------------------------------------

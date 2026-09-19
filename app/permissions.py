@@ -22,6 +22,10 @@ MATRIX: dict[str, dict[str, tuple[Role, ...]]] = {
     "match_approval": {"read": (Role.MEMBER, Role.OFFICE),             "write": (Role.MEMBER,)},
     "credit":         {"read": (Role.DONOR, Role.OFFICE),              "write": (Role.OFFICE,)},
     "user_admin":     {"read": (Role.OFFICE,),                          "write": (Role.OFFICE,)},
+    # 계정 발급·비밀번호 초기화는 운영자 몫이다. 초기화하면 그 계정으로 들어갈 수 있으므로
+    # account_log 에 누가·언제·누구의 비밀번호를 건드렸는지 남는다.
+    "account":        {"read": (Role.OFFICE,),                          "write": (Role.OFFICE,)},
+    "account_log":    {"read": (Role.OFFICE,),                          "write": ()},
     "audit_log":      {"read": (Role.OFFICE,),                          "write": ()},
 }
 

@@ -13,7 +13,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
 from app.db import is_migrated
-from app.routers import auth, donor, member, office
+from app.deps import PasswordChangeRequired
+from app.routers import account, auth, donor, member, office
 
 
 @asynccontextmanager
@@ -40,6 +41,7 @@ app.mount(
     "/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static"
 )
 
+app.include_router(account.router)
 app.include_router(auth.router)
 app.include_router(donor.router)
 app.include_router(member.router)
@@ -58,6 +60,11 @@ def _back_to(request: Request) -> str:
         if not parts.netloc or parts.netloc == request.url.netloc:
             return urlunsplit(("", "", parts.path or "/", parts.query, ""))
     return "/"
+
+
+@app.exception_handler(PasswordChangeRequired)
+def password_change_required_handler(request: Request, exc: PasswordChangeRequired):
+    return RedirectResponse("/account/password", status_code=303)
 
 
 @app.exception_handler(HTTPException)

@@ -63,6 +63,8 @@ def login(
 
     request.session.clear()
     request.session["uid"] = user.id
+    if user.must_change_password:
+        return RedirectResponse("/account/password", status_code=303)
     return RedirectResponse(HOME[user.role], status_code=303)
 
 
