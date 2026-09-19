@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from app.models import Credit, Offer, OfferStatus, Role, User
+from app.models import Offer, OfferStatus, Role, User
 from app.security import hash_password
 
 
@@ -39,15 +39,6 @@ def test_unknown_delivery_method_is_guided_not_500(db, seeded, client):
     ).text
 
     assert "전달 방법 값이 올바르지 않습니다" in body
-
-
-def test_unknown_credit_kind_is_guided_not_500(db, seeded, client):
-    _login(client, "blue@ium.test")
-
-    body = client.post("/donor/credits", data={"kind": "NOPE"}, follow_redirects=True).text
-
-    assert "증빙 종류 값이 올바르지 않습니다" in body
-    assert list(db.scalars(select(Credit)).all()) == []
 
 
 def test_missing_shop_message_reaches_the_donor(db, seeded, client):

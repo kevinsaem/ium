@@ -16,9 +16,6 @@ from app.models import (
     AccountEvent,
     Case,
     CaseStatus,
-    Credit,
-    CreditKind,
-    CreditStatus,
     IdentityAccessLog,
     Match,
     MatchStatus,
@@ -432,9 +429,6 @@ def badges(request: Request, user: User = Depends(office_dep), db: Session = Dep
     offer_counts = dict(
         db.execute(select(Offer.shop_id, func.count(Offer.id)).group_by(Offer.shop_id)).all()
     )
-    credits = list(
-        db.scalars(select(Credit).order_by(Credit.status, Credit.id.desc()).limit(30)).all()
-    )
     return render(
         request,
         "office/badges.html",
@@ -443,7 +437,6 @@ def badges(request: Request, user: User = Depends(office_dep), db: Session = Dep
         pending=[s for s in shops if not s.is_certified],
         certified=[s for s in shops if s.is_certified],
         offer_counts=offer_counts,
-        credits=credits,
     )
 
 
@@ -477,42 +470,4 @@ def revoke_shop(
     shop.certified_by_id = None
     db.commit()
     flash(request, f"{shop.name}의 인증을 취소했습니다.")
-    return RedirectResponse("/office/badges", status_code=303)
-
-
-@router.post("/credits/{credit_id}/process")
-def process_credit(
-    credit_id: int,
-    request: Request,
-    decision: str = Form(...),
-    note: str = Form(""),
-    requirement_confirmed: str = Form(""),
-    user: User = Depends(office_dep),
-    db: Session = Depends(get_db),
-):
-    """증빙 발급 판단. 기부금 영수증은 자동 발급하지 않고 운영자가 직접 결정한다."""
-    credit = db.get(Credit, credit_id)
-    if credit is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="증빙 신청을 찾을 수 없습니다.")
-    if decision not in ("issued", "rejected"):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="알 수 없는 처리 결과입니다.")
-
-    donation_issue = credit.kind is CreditKind.DONATION and decision == "issued"
-    if donation_issue and not (requirement_confirmed and note.strip()):
-        # 협의체가 발급 주체가 될 수 있는지는 아직 미확인이다. 그러니 시스템이 '확인 완료'라고
-        # 적어 줄 수는 없다. 운영자가 확인했다고 직접 표시하고 근거를 남겨야만 발급으로 넘긴다.
-        flash(
-            request,
-            "기부금 영수증은 법정기부금단체 요건 확인 후에만 발급 처리할 수 있습니다. "
-            "확인란에 체크하고 근거를 메모에 남겨 주세요.",
-        )
-        return RedirectResponse("/office/badges", status_code=303)
-
-    credit.status = CreditStatus(decision)
-    credit.processed_by_id = user.id
-    credit.issued_note = note.strip() or None
-    if donation_issue:
-        credit.issued_note = f"{note.strip()} · 요건 확인: {user.name}"
-    db.commit()
-    flash(request, f"{credit.donor.name}님의 {credit.kind.label}을 {credit.status.label} 처리했습니다.")
     return RedirectResponse("/office/badges", status_code=303)

@@ -1,4 +1,4 @@
-"""운영자 기록 화면 테스트 — 월간 보고서, 감사 기록, 시간 기준, 기부금 영수증.
+"""운영자 기록 화면 테스트 — 월간 보고서, 감사 기록, 시간 기준.
 
 보고서는 시청에 제출되는 문서이고 감사 기록은 민원·감사 때 유일한 설명 수단이다.
 둘 다 '숫자가 맞는가'와 '내용이 새지 않는가'를 함께 고정한다.
@@ -13,9 +13,6 @@ from app import identity_service, matching
 from app.models import (
     Case,
     CaseStatus,
-    Credit,
-    CreditKind,
-    CreditStatus,
     IdentityAccessLog,
     Offer,
     OfferStatus,
@@ -219,66 +216,3 @@ def test_records_are_office_only(db, seeded, client):
 def test_dashboard_links_to_the_full_audit_log(db, seeded, client):
     _login(client, "office@ium.test")
     assert 'href="/office/audit"' in client.get("/office").text
-
-
-# --- 기부금 영수증 ---------------------------------------------------------
-
-
-def _credit(db, seeded, kind: CreditKind) -> Credit:
-    credit = Credit(donor_id=seeded["donor"].id, kind=kind, period_label="2026년")
-    db.add(credit)
-    db.commit()
-    return credit
-
-
-def _process(client, credit, **data):
-    return client.post(f"/office/credits/{credit.id}/process", data=data, follow_redirects=True).text
-
-
-def test_donation_receipt_needs_explicit_confirmation(db, seeded, client):
-    credit = _credit(db, seeded, CreditKind.DONATION)
-
-    _login(client, "office@ium.test")
-    body = _process(client, credit, decision="issued", note="정관 확인")
-
-    assert "요건 확인 후에만 발급 처리할 수 있습니다" in body
-    db.expire_all()
-    assert db.get(Credit, credit.id).status is CreditStatus.REQUESTED
-
-
-def test_donation_confirmation_without_a_basis_is_refused(db, seeded, client):
-    credit = _credit(db, seeded, CreditKind.DONATION)
-
-    _login(client, "office@ium.test")
-    _process(client, credit, decision="issued", note="", requirement_confirmed="1")
-
-    db.expire_all()
-    assert db.get(Credit, credit.id).status is CreditStatus.REQUESTED
-
-
-def test_donation_receipt_records_who_confirmed_instead_of_the_system(db, seeded, client):
-    credit = _credit(db, seeded, CreditKind.DONATION)
-
-    _login(client, "office@ium.test")
-    _process(
-        client, credit, decision="issued", note="2026-09-10 기획재정부 고시 확인", requirement_confirmed="1"
-    )
-
-    db.expire_all()
-    saved = db.get(Credit, credit.id)
-    assert saved.status is CreditStatus.ISSUED
-    assert "요건 확인: 협의체 운영자" in saved.issued_note
-    assert "요건 확인 완료)" not in saved.issued_note  # 시스템이 대신 선언하던 문구
-
-
-def test_volunteer_credit_and_rejection_need_no_donation_check(db, seeded, client):
-    volunteer = _credit(db, seeded, CreditKind.VOLUNTEER)
-    donation = _credit(db, seeded, CreditKind.DONATION)
-
-    _login(client, "office@ium.test")
-    _process(client, volunteer, decision="issued", note="")
-    _process(client, donation, decision="rejected", note="요건 미확인")
-
-    db.expire_all()
-    assert db.get(Credit, volunteer.id).status is CreditStatus.ISSUED
-    assert db.get(Credit, donation.id).status is CreditStatus.REJECTED

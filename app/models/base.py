@@ -99,21 +99,3 @@ class MatchStatus(str, enum.Enum):
             "cancelled": "취소",
         }[self.value]
 
-
-class CreditKind(str, enum.Enum):
-    VOLUNTEER = "volunteer"  # 자원봉사 실적 (1365 연계)
-    DONATION = "donation"    # 기부금 영수증 — 발급요건 확인 전까지 신청만 접수
-
-    @property
-    def label(self) -> str:
-        return {"volunteer": "자원봉사 실적 인증", "donation": "기부금 영수증"}[self.value]
-
-
-class CreditStatus(str, enum.Enum):
-    REQUESTED = "requested"  # 신청 접수
-    ISSUED = "issued"        # 발급 완료
-    REJECTED = "rejected"    # 요건 미충족
-
-    @property
-    def label(self) -> str:
-        return {"requested": "신청 접수", "issued": "발급 완료", "rejected": "요건 미충족"}[self.value]

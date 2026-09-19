@@ -10,8 +10,6 @@ from app.deps import require_role
 from app.forms import WALK_MINUTES, parse_enum, parse_optional_int
 from app.icons import KIND_ICON
 from app.models import (
-    Credit,
-    CreditKind,
     DeliveryMethod,
     Match,
     MatchStatus,
@@ -191,10 +189,6 @@ def mine(request: Request, user: User = Depends(donor_dep), db: Session = Depend
         if delivered
         else []
     )
-    credits = list(
-        db.scalars(select(Credit).where(Credit.donor_id == user.id).order_by(Credit.id.desc())).all()
-    )
-
     return render(
         request,
         "donor/mine.html",
@@ -204,7 +198,6 @@ def mine(request: Request, user: User = Depends(donor_dep), db: Session = Depend
         offers=offers,
         match_state=match_state,
         reopenable=reopenable,
-        credits=credits,
         thanks=thanks,
         period_label=f"{year}년",
         stats={
@@ -261,51 +254,4 @@ def reopen_offer(
     offer.status = OfferStatus.OPEN
     db.commit()
     flash(request, f"'{offer.title}' 을(를) 다시 열었습니다.")
-    return RedirectResponse("/donor/mine", status_code=303)
-
-
-@router.post("/credits")
-def request_credit(
-    request: Request,
-    kind: str = Form(...),
-    user: User = Depends(donor_dep),
-    db: Session = Depends(get_db),
-):
-    """증빙 신청 접수. 발급 판단은 운영자가 수기로 한다 (자동 발급 금지)."""
-    period = f"{current_month()[0]}년"
-    credit_kind = parse_enum(CreditKind, kind, "증빙 종류")
-
-    existing = db.scalar(
-        select(Credit).where(
-            Credit.donor_id == user.id, Credit.kind == credit_kind, Credit.period_label == period
-        )
-    )
-    if existing is not None:
-        flash(request, f"{period} {credit_kind.label}은 이미 신청되어 있습니다.")
-        return RedirectResponse("/donor/mine", status_code=303)
-
-    shop = _shop(db, user)
-    delivered: list[Match] = []
-    if shop:
-        offer_ids = [o.id for o in shop.offers]
-        if offer_ids:
-            delivered = list(
-                db.scalars(
-                    select(Match).where(
-                        Match.offer_id.in_(offer_ids), Match.status == MatchStatus.DELIVERED
-                    )
-                ).all()
-            )
-
-    db.add(
-        Credit(
-            donor_id=user.id,
-            kind=credit_kind,
-            period_label=period,
-            # 실적 값은 신청 시점 스냅샷일 뿐, 발급 근거는 운영자가 다시 확인한다.
-            volunteer_hours=len(delivered) * 2 if credit_kind is CreditKind.VOLUNTEER else None,
-        )
-    )
-    db.commit()
-    flash(request, f"{period} {credit_kind.label} 신청이 접수되었습니다. 운영자 검토 후 처리됩니다.")
     return RedirectResponse("/donor/mine", status_code=303)

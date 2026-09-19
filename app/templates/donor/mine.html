@@ -64,39 +64,6 @@
 <div class="empty" style="padding:22px">아직 올린 나눔글이 없습니다.</div>
 {% endfor %}
 
-<div class="sectit">공식 증빙</div>
-{% for c in credits %}
-<div class="cert">
-  <span class="seal2 ic-svg">{{ icon('award' if c.kind.value == 'volunteer' else 'doc') }}</span>
-  <b>{{ c.period_label }} {{ c.kind.label }}</b>
-  <p>
-    {{ c.status.label }}
-    {% if c.volunteer_hours %} · 누적 {{ c.volunteer_hours }}시간{% endif %}
-    {% if c.amount_krw %} · 환산액 {{ '{:,}'.format(c.amount_krw) }}원{% endif %}
-    {% if c.issued_note %}<br>{{ c.issued_note }}{% endif %}
-  </p>
-</div>
-{% else %}
-<div class="empty" style="padding:22px">아직 신청한 증빙이 없습니다.</div>
-{% endfor %}
-
-<form method="post" action="/donor/credits">
-  <div class="field">
-    <label>증빙 신청</label>
-    <div class="chips">
-      <input type="radio" id="c-volunteer" name="kind" value="volunteer" checked>
-      <label for="c-volunteer">자원봉사 실적</label>
-      <input type="radio" id="c-donation" name="kind" value="donation">
-      <label for="c-donation">기부금 영수증</label>
-    </div>
-  </div>
-  <button class="btn ghost" type="submit">{{ period_label }} 증빙 신청하기</button>
-</form>
-<p class="legend">
-  기부금 영수증은 <b>법정기부금단체 요건</b> 확인 후 발급 여부가 결정됩니다.<br>
-  신청은 접수되며, 운영자가 검토 후 처리합니다.
-</p>
-
 {% if thanks %}
 <div class="sectit">익명 감사 메시지</div>
 {% for t in thanks %}

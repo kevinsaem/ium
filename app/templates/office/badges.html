@@ -51,37 +51,4 @@
 {% else %}
 <div class="empty" style="padding:22px">아직 인증된 가게가 없습니다.</div>
 {% endfor %}
-
-<div class="sectit">증빙 신청 처리</div>
-{% for c in credits %}
-<div class="card" style="cursor:default">
-  <div class="meta">
-    <h3>{{ c.donor.name }} · {{ c.kind.label }}</h3>
-    <div class="sub">{{ c.period_label }} · {{ c.status.label }}</div>
-  </div>
-  {% if c.status.value == 'requested' %}
-  <form method="post" action="/office/credits/{{ c.id }}/process">
-    <div class="field" style="margin:11px 0 0">
-      <input name="note" placeholder="{{ '확인 근거 (예: 2026-09-10 기획재정부 고시 확인)' if c.kind.value == 'donation' else '처리 메모' }}">
-    </div>
-    {% if c.kind.value == 'donation' %}
-    <label class="check" style="margin-top:9px">
-      <input type="checkbox" name="requirement_confirmed" value="1">
-      법정기부금단체 요건을 직접 확인했습니다
-    </label>
-    {% endif %}
-    <div class="btnrow">
-      <button class="btn sm" type="submit" name="decision" value="issued" style="flex:1;width:100%">발급</button>
-      <button class="btn ghost sm" type="submit" name="decision" value="rejected" style="flex:1;width:100%">요건 미충족</button>
-    </div>
-  </form>
-  {% endif %}
-</div>
-{% else %}
-<div class="empty" style="padding:22px">처리할 증빙 신청이 없습니다.</div>
-{% endfor %}
-<p class="legend">
-  기부금 영수증은 <b>법정기부금단체 요건</b>이 확인되기 전까지 발급하지 마세요.<br>
-  자원봉사 실적은 1365 연계 행정 절차를 거친 뒤 발급 처리합니다.
-</p>
 {% endblock %}
