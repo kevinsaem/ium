@@ -19,7 +19,8 @@ MATRIX: dict[str, dict[str, tuple[Role, ...]]] = {
     # 🔴 식별정보는 위원만. 운영자도 읽을 수 없다.
     "case_identity":  {"read": (Role.MEMBER,),                          "write": (Role.MEMBER,)},
     "match":          {"read": (Role.MEMBER, Role.OFFICE),             "write": (Role.MEMBER,)},
-    "match_approval": {"read": (Role.MEMBER, Role.OFFICE),             "write": (Role.MEMBER,)},
+    # 나눔글을 위원에게 노출할지는 운영팀이 결정한다. 협의체 이름으로 나가는 물건이라서다.
+    "offer_review":   {"read": (Role.DONOR, Role.MEMBER, Role.OFFICE), "write": (Role.OFFICE,)},
     "user_admin":     {"read": (Role.OFFICE,),                          "write": (Role.OFFICE,)},
     # 계정 발급·비밀번호 초기화는 운영자 몫이다. 초기화하면 그 계정으로 들어갈 수 있으므로
     # account_log 에 누가·언제·누구의 비밀번호를 건드렸는지 남는다.

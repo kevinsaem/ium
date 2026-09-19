@@ -29,6 +29,7 @@ from app.models import (  # noqa: E402
     DeliveryMethod,
     Offer,
     OfferKind,
+    OfferStatus,
     Role,
     Shop,
     User,
@@ -100,6 +101,8 @@ def seeded(db) -> dict[str, User]:
             Offer(
                 shop_id=shop.id, title=title, kind=kind, icon="bag",
                 quantity_note=f"{i + 1}건", delivery=DeliveryMethod.MEMBER_PICKUP,
+                # 시드 나눔글은 운영팀 승인을 마친 상태로 둔다. 승인 흐름은 따로 테스트한다.
+                status=OfferStatus.OPEN,
             )
         )
 
@@ -128,15 +131,8 @@ def client(db) -> Iterator[TestClient]:
 
 
 @pytest.fixture()
-def committee_mode(monkeypatch):
+def no_offer_approval(monkeypatch):
+    """운영팀 노출 승인을 끈 상태 — 나눔글이 바로 위원에게 보인다."""
     from app import config
 
-    monkeypatch.setattr(config.settings, "match_approval_mode", "committee")
-    monkeypatch.setattr(config.settings, "committee_approvals", 2)
-
-
-@pytest.fixture()
-def member_mode(monkeypatch):
-    from app import config
-
-    monkeypatch.setattr(config.settings, "match_approval_mode", "member")
+    monkeypatch.setattr(config.settings, "offer_approval", False)

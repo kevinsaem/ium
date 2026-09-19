@@ -23,6 +23,7 @@ from app.models import (
     DeliveryMethod,
     Offer,
     OfferKind,
+    OfferStatus,
     Role,
     Shop,
     ThanksMessage,
@@ -119,6 +120,9 @@ def seed() -> None:
                 shop_id=shops[shop_name].id, title=title, kind=kind,
                 icon=icon or KIND_ICON.get(kind.value, "bag"),
                 quantity_note=qty, delivery=delivery,
+                # 시연 데이터는 운영팀 승인을 마친 상태로 둔다. 승인 대기 화면은
+                # 후원자가 새 나눔글을 올려 보면 바로 확인할 수 있다.
+                status=OfferStatus.OPEN,
             )
             db.add(offer)
             db.flush()

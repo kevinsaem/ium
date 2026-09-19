@@ -68,7 +68,7 @@ def test_not_found_is_guided_not_500(db, seeded, client):
     assert "나눔글을 찾을 수 없습니다." in body
 
 
-def test_matching_conflict_message_reaches_the_member(db, seeded, client, committee_mode):
+def test_matching_conflict_message_reaches_the_member(db, seeded, client):
     """이미 매칭 중인 나눔을 또 제안할 때 — matching.py 의 400 이 안내로 도착해야 한다."""
     from app import matching
     from app.models import Case, CaseStatus

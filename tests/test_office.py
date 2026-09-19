@@ -152,3 +152,125 @@ def test_case_assignment_appears_in_the_permission_matrix(db, seeded, client):
     html = client.get("/office").text
 
     assert "case_assignment" in html
+
+
+# --- 나눔글 노출 심사 (안건 05) ---------------------------------------------
+
+
+def _post_offer(client, db) -> int:
+    """후원자가 새 나눔글을 올린다 — 승인 대기 상태로 들어간다."""
+    from sqlalchemy import select as _select
+
+    from app.models import Offer
+
+    client.post("/login", data={"email": "blue@ium.test", "password": "ium1234"})
+    client.post(
+        "/donor/offers",
+        data={"title": "라면 20박스", "kind": "goods", "delivery": "member_pickup"},
+    )
+    return db.scalar(_select(Offer.id).where(Offer.title == "라면 20박스"))
+
+
+def test_new_offer_waits_and_is_hidden_from_members(db, seeded, client):
+    from app.models import Offer, OfferStatus
+
+    offer_id = _post_offer(client, db)
+    assert db.get(Offer, offer_id).status is OfferStatus.PENDING
+
+    # 위원의 매칭 후보에 오르지 않는다
+    _login(client, "member1@ium.test")
+    case_id = db.scalar(select(Case.id).where(Case.member_id == seeded["member1"].id))
+    assert "라면 20박스" not in client.get(f"/member/cases/{case_id}").text
+
+    # 운영자 현황판에는 승인 대기로 뜬다
+    _login(client, "office@ium.test")
+    assert "라면 20박스" in client.get("/office").text
+
+
+def test_office_approves_and_members_can_then_match(db, seeded, client):
+    from app.models import Offer, OfferStatus
+
+    offer_id = _post_offer(client, db)
+
+    _login(client, "office@ium.test")
+    client.post(f"/office/offers/{offer_id}/approve", data={"note": "현장 확인"})
+
+    db.expire_all()
+    assert db.get(Offer, offer_id).status is OfferStatus.OPEN
+
+    _login(client, "member1@ium.test")
+    case_id = db.scalar(select(Case.id).where(Case.member_id == seeded["member1"].id))
+    assert "라면 20박스" in client.get(f"/member/cases/{case_id}").text
+
+
+def test_rejection_reason_reaches_the_donor(db, seeded, client):
+    from app.models import Offer, OfferStatus
+
+    offer_id = _post_offer(client, db)
+
+    _login(client, "office@ium.test")
+    client.post(f"/office/offers/{offer_id}/reject", data={"note": "유통기한이 지났습니다"})
+
+    db.expire_all()
+    assert db.get(Offer, offer_id).status is OfferStatus.REJECTED
+
+    _login(client, "blue@ium.test")
+    body = client.get("/donor/mine").text
+    assert "유통기한이 지났습니다" in body
+    assert "다시 접수" in body
+
+
+def test_rejection_without_a_reason_is_refused(db, seeded, client):
+    from app.models import Offer, OfferStatus
+
+    offer_id = _post_offer(client, db)
+
+    _login(client, "office@ium.test")
+    body = client.post(
+        f"/office/offers/{offer_id}/reject", data={"note": "  "}, follow_redirects=True
+    ).text
+
+    assert "거절 사유를 입력해 주세요" in body
+    db.expire_all()
+    assert db.get(Offer, offer_id).status is OfferStatus.PENDING
+
+
+def test_rejected_offer_goes_back_for_review_not_straight_out(db, seeded, client):
+    """고쳐서 다시 올린 글은 심사를 다시 받는다 — 거절을 우회하는 길이 되면 안 된다."""
+    from app.models import Offer, OfferStatus
+
+    offer_id = _post_offer(client, db)
+    _login(client, "office@ium.test")
+    client.post(f"/office/offers/{offer_id}/reject", data={"note": "사유"})
+
+    _login(client, "blue@ium.test")
+    client.post(f"/donor/offers/{offer_id}/reopen")
+
+    db.expire_all()
+    offer = db.get(Offer, offer_id)
+    assert offer.status is OfferStatus.PENDING
+    assert offer.review_note is None
+
+
+def test_only_office_can_review_offers(db, seeded, client):
+    from app.models import Offer, OfferStatus
+
+    offer_id = _post_offer(client, db)
+
+    for email in ("member1@ium.test", "blue@ium.test"):
+        _login(client, email)
+        res = client.post(f"/office/offers/{offer_id}/approve", follow_redirects=False)
+        assert res.headers["location"] == "/", email
+
+    db.expire_all()
+    assert db.get(Offer, offer_id).status is OfferStatus.PENDING
+
+
+def test_pending_offer_is_hidden_from_the_donor_feed(db, seeded, client):
+    """심사 전 글은 후원자 피드에도 오르지 않는다. 동네에 공개된 나눔은 확인을 거친 것뿐이다."""
+    _post_offer(client, db)
+
+    _login(client, "blue@ium.test")
+    assert "라면 20박스" not in client.get("/donor").text
+    # 다만 본인의 '내 나눔글'에서는 진행 상황이 보인다
+    assert "라면 20박스" in client.get("/donor/mine").text

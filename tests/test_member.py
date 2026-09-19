@@ -24,7 +24,7 @@ def _open_case_and_offer(db):
 # --- 매칭 취소 -------------------------------------------------------------
 
 
-def test_cancel_returns_the_offer_to_the_donor(db, seeded, client, committee_mode):
+def test_cancel_returns_the_offer_to_the_donor(db, seeded, client):
     case, offer = _open_case_and_offer(db)
     match = matching.propose(db, case, offer, seeded["member1"])
     assert offer.status is OfferStatus.RESERVED
@@ -38,7 +38,7 @@ def test_cancel_returns_the_offer_to_the_donor(db, seeded, client, committee_mod
     assert db.get(Case, case.id).status is CaseStatus.OPEN
 
 
-def test_cancelled_offer_can_then_be_closed_by_the_donor(db, seeded, client, committee_mode):
+def test_cancelled_offer_can_then_be_closed_by_the_donor(db, seeded, client):
     """후원자 화면의 '위원에게 알려 취소해 주세요' 안내가 실제로 통하는 경로인지 확인한다."""
     case, offer = _open_case_and_offer(db)
     match = matching.propose(db, case, offer, seeded["member1"])
@@ -53,7 +53,7 @@ def test_cancelled_offer_can_then_be_closed_by_the_donor(db, seeded, client, com
     assert db.get(Offer, offer.id).status is OfferStatus.CLOSED
 
 
-def test_cancel_reason_is_kept_on_the_match(db, seeded, client, committee_mode):
+def test_cancel_reason_is_kept_on_the_match(db, seeded, client):
     case, offer = _open_case_and_offer(db)
     match = matching.propose(db, case, offer, seeded["member1"])
 
@@ -64,7 +64,7 @@ def test_cancel_reason_is_kept_on_the_match(db, seeded, client, committee_mode):
     assert "중복 지원 확인됨" in db.get(Match, match.id).note
 
 
-def test_only_the_owning_member_can_cancel(db, seeded, client, committee_mode):
+def test_only_the_owning_member_can_cancel(db, seeded, client):
     case, offer = _open_case_and_offer(db)
     match = matching.propose(db, case, offer, seeded["member1"])
 
@@ -78,7 +78,7 @@ def test_only_the_owning_member_can_cancel(db, seeded, client, committee_mode):
     assert db.get(Match, match.id).status is not MatchStatus.CANCELLED
 
 
-def test_only_the_owning_member_can_mark_delivered(db, seeded, client, member_mode):
+def test_only_the_owning_member_can_mark_delivered(db, seeded, client):
     case, offer = _open_case_and_offer(db)
     match = matching.propose(db, case, offer, seeded["member1"])
     assert match.status is MatchStatus.APPROVED
@@ -103,7 +103,7 @@ def test_close_case_sets_closed(db, seeded, client):
     assert db.get(Case, case.id).status is CaseStatus.CLOSED
 
 
-def test_cannot_close_a_case_with_a_live_match(db, seeded, client, committee_mode):
+def test_cannot_close_a_case_with_a_live_match(db, seeded, client):
     case, offer = _open_case_and_offer(db)
     matching.propose(db, case, offer, seeded["member1"])
 

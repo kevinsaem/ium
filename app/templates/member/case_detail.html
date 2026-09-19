@@ -109,7 +109,6 @@
   </div>
   <div class="foot" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center">
     <span class="tag {{ 'fill' if m.status.value in ('approved','delivered') else 'line' }}">{{ m.status.label }}</span>
-    <span class="tag soft">승인 {{ m.approval_count }}/{{ required_approvals }}</span>
   </div>
 </div>
 {% endfor %}
@@ -126,9 +125,9 @@
     </select>
   </div>
   <div class="field"><label>매칭 메모</label><input name="note" placeholder="예) 화요일 오전 수령 예정"></div>
-  <button class="btn" type="submit">이 케이스에 매칭 제안</button>
+  <button class="btn" type="submit">이 케이스에 매칭하기</button>
 </form>
-<p class="legend">승인 방식: <b>{{ approval_mode_label }}</b></p>
+<p class="legend">여기 보이는 나눔은 운영팀 확인을 거친 것입니다. ({{ approval_mode_label }})</p>
 {% endif %}
 
 <div class="divline"></div>

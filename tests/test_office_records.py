@@ -99,7 +99,7 @@ def test_member_report_uses_the_same_month_rule(db, seeded, client):
     assert "당월 발굴 케이스 2건" in client.get("/member/report").text
 
 
-def test_delivery_just_after_korean_midnight_lands_in_the_new_month(db, seeded, client, member_mode):
+def test_delivery_just_after_korean_midnight_lands_in_the_new_month(db, seeded, client):
     match = _deliver_one(db, seeded)
     start, _ = month_bounds(*current_month())
     # 이번 달 1일 00:30 (한국). UTC 로는 아직 지난달 마지막 날이다.
@@ -110,7 +110,7 @@ def test_delivery_just_after_korean_midnight_lands_in_the_new_month(db, seeded, 
     assert "당월 전달 완료 1건" in client.get("/office/report").text
 
 
-def test_office_report_contains_no_identity(db, seeded, client, member_mode):
+def test_office_report_contains_no_identity(db, seeded, client):
     _deliver_one(db, seeded)
 
     _login(client, "office@ium.test")
@@ -121,7 +121,7 @@ def test_office_report_contains_no_identity(db, seeded, client, member_mode):
     assert "안산시" not in html
 
 
-def test_resolved_case_still_holding_identity_is_flagged(db, seeded, client, member_mode):
+def test_resolved_case_still_holding_identity_is_flagged(db, seeded, client):
     """전달은 끝났는데 식별정보가 남아 있으면 운영자에게 '파기 대기'로 보인다 — 내용은 아니고."""
     match = _deliver_one(db, seeded)
 

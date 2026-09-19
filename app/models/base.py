@@ -62,13 +62,27 @@ class DeliveryMethod(str, enum.Enum):
 
 
 class OfferStatus(str, enum.Enum):
-    OPEN = "open"          # 매칭 가능
+    """나눔글의 일생.
+
+    후원자가 올리면 바로 위원에게 보이지 않는다. 운영팀이 노출 여부를 먼저 결정한다
+    (위원회 결정, 안건 05). 협의체 이름으로 전달되는 물건이라 그렇다.
+    """
+
+    PENDING = "pending"    # 운영팀 승인 대기 — 위원에게 보이지 않는다
+    OPEN = "open"          # 승인됨, 매칭 가능
     RESERVED = "reserved"  # 매칭 진행 중
     CLOSED = "closed"      # 소진·종료
+    REJECTED = "rejected"  # 운영팀이 노출하지 않기로 함
 
     @property
     def label(self) -> str:
-        return {"open": "나눔 가능", "reserved": "매칭 중", "closed": "종료"}[self.value]
+        return {
+            "pending": "승인 대기",
+            "open": "나눔 가능",
+            "reserved": "매칭 중",
+            "closed": "종료",
+            "rejected": "노출 거절",
+        }[self.value]
 
 
 class CaseStatus(str, enum.Enum):

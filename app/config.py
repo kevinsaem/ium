@@ -47,10 +47,11 @@ class Settings:
     identity_key: str = _env("IUM_IDENTITY_KEY", "")
     database_url: str = _env("IUM_DATABASE_URL", "sqlite:///./ium.db")
 
-    # member    : 위원이 제안하면 즉시 승인
-    # committee : 협의체 공동 결정 — committee_approvals 명 이상의 승인 필요
-    match_approval_mode: str = _env("IUM_MATCH_APPROVAL_MODE", "committee")
-    committee_approvals: int = int(_env("IUM_COMMITTEE_APPROVALS", "2"))
+    # 나눔글을 위원에게 노출하기 전 운영팀이 승인할지 (위원회 결정, 안건 05).
+    # "향후에 좀 번거로우면 승인 단계를 뺄 수도 있지 않을까" — 그래서 설정으로 뺐다.
+    offer_approval: bool = _env("IUM_OFFER_APPROVAL", "on").strip().lower() not in {
+        "off", "false", "0", "no"
+    }
 
     # 파일럿 대상 동
     dong: str = _env("IUM_DONG", "선부3동")

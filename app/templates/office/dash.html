@@ -1,5 +1,45 @@
 {% extends "base.html" %}
 {% block body %}
+<div class="sectit">승인 대기 나눔글 · {{ pending_offers | length }}건</div>
+{% for o in pending_offers %}
+<div class="card" style="cursor:default">
+  <div class="row">
+    <div class="thumb ic-svg">{{ icon(o.icon) }}</div>
+    <div class="meta">
+      <h3>{{ o.title }}</h3>
+      <div class="sub">
+        {{ o.shop.name }}{% if o.shop.category %} · {{ o.shop.category }}{% endif %} · {{ o.kind.label }}
+        {%- if o.quantity_note %} · {{ o.quantity_note }}{% endif %}
+      </div>
+      <div class="sub">{{ o.delivery.label }} · 접수 {{ o.created_at | local('%m/%d %H:%M') }}</div>
+      {% if o.detail %}<div class="sub" style="white-space:pre-line">{{ o.detail }}</div>{% endif %}
+      <div class="foot">
+        {% if o.shop.is_certified %}
+        <span class="verify"><span class="ic-svg">{{ icon('check') }}</span>인증 나눔가게</span>
+        {% else %}
+        <span class="tag line">미인증 가게</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <form method="post" action="/office/offers/{{ o.id }}/approve">
+    <button class="btn sm" type="submit" style="width:100%">노출 승인</button>
+  </form>
+  <form method="post" action="/office/offers/{{ o.id }}/reject">
+    <div class="field" style="margin:9px 0 0">
+      <input name="note" placeholder="거절 사유 (후원자에게 그대로 보입니다)" required>
+    </div>
+    <button class="btn ghost sm" type="submit" style="width:100%">노출하지 않기</button>
+  </form>
+</div>
+{% else %}
+<div class="empty" style="padding:22px">승인을 기다리는 나눔글이 없습니다.</div>
+{% endfor %}
+<p class="legend">
+  {{ approval_mode_label }}. 협의체 이름으로 전달되는 물건이라 운영팀이 먼저 확인합니다.<br>
+  승인하면 위원들의 매칭 후보에 오릅니다.
+</p>
+
 <div class="sectit">{{ settings.dong }} 현황</div>
 <div class="stats">
   <div class="stat"><b>{{ stats.certified_shops }}</b><span>인증가게</span></div>

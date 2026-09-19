@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app import accounts, identity_service
+from app import accounts, identity_service, matching
 from app.config import settings
 from app.db import get_db
 from app.deps import require_role
@@ -20,6 +20,7 @@ from app.models import (
     Match,
     MatchStatus,
     Offer,
+    OfferStatus,
     Role,
     Shop,
     User,
@@ -87,11 +88,22 @@ def dashboard(request: Request, user: User = Depends(office_dep), db: Session = 
         ).all()
     )
 
+    pending_offers = list(
+        db.scalars(
+            select(Offer)
+            .options(selectinload(Offer.shop))
+            .where(Offer.status == OfferStatus.PENDING)
+            .order_by(Offer.created_at)
+        ).all()
+    )
+
     return render(
         request,
         "office/dash.html",
         user,
         "dash",
+        pending_offers=pending_offers,
+        approval_mode_label=matching.approval_mode_label(),
         stats=stats,
         goals=goals,
         audit_logs=audit_logs,
@@ -101,6 +113,50 @@ def dashboard(request: Request, user: User = Depends(office_dep), db: Session = 
 
 AUDIT_PAGE_SIZE = 50
 AUDIT_ACTION_LABELS = {"read": "열람", "write": "수정", "handover": "담당 변경"}
+
+
+def _pending_offer(db: Session, offer_id: int) -> Offer:
+    offer = db.get(Offer, offer_id)
+    if offer is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="나눔글을 찾을 수 없습니다.")
+    return offer
+
+
+@router.post("/offers/{offer_id}/approve")
+def approve_offer(
+    offer_id: int,
+    request: Request,
+    note: str = Form(""),
+    user: User = Depends(office_dep),
+    db: Session = Depends(get_db),
+):
+    """나눔글 노출 승인 (위원회 결정, 안건 05).
+
+    협의체 이름으로 전달되는 물건이라 운영팀이 먼저 본다. 승인하면 위원들의 매칭 후보에 오른다.
+    """
+    offer = _pending_offer(db, offer_id)
+    matching.approve_offer(db, offer, user, note.strip() or None)
+    flash(request, f"'{offer.title}' 을(를) 승인했습니다. 위원들에게 노출됩니다.")
+    return RedirectResponse("/office", status_code=303)
+
+
+@router.post("/offers/{offer_id}/reject")
+def reject_offer(
+    offer_id: int,
+    request: Request,
+    note: str = Form(""),
+    user: User = Depends(office_dep),
+    db: Session = Depends(get_db),
+):
+    """노출 거절 — 사유는 후원자에게 그대로 보인다."""
+    offer = _pending_offer(db, offer_id)
+    if not note.strip():
+        flash(request, "거절 사유를 입력해 주세요. 후원자에게 그대로 전달됩니다.")
+        return RedirectResponse("/office", status_code=303)
+
+    matching.reject_offer(db, offer, user, note)
+    flash(request, f"'{offer.title}' 을(를) 노출하지 않기로 했습니다.")
+    return RedirectResponse("/office", status_code=303)
 
 
 @router.get("/report")

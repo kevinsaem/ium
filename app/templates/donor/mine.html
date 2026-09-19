@@ -48,7 +48,20 @@
       </div>
     </div>
   </div>
-  {% if o.status.value == 'open' %}
+  {% if o.status.value == 'pending' %}
+  <p class="legend">운영팀이 확인하고 있습니다. 확인되면 위원들에게 전달됩니다.</p>
+  <form method="post" action="/donor/offers/{{ o.id }}/close">
+    <button class="btn ghost sm" type="submit">접수 취소하기</button>
+  </form>
+  {% elif o.status.value == 'rejected' %}
+  <p class="legend">
+    <b>운영팀이 노출하지 않기로 했습니다.</b>
+    {% if o.review_note %}<br>사유: {{ o.review_note }}{% endif %}
+  </p>
+  <form method="post" action="/donor/offers/{{ o.id }}/reopen">
+    <button class="btn ghost sm" type="submit">고쳐서 다시 접수하기</button>
+  </form>
+  {% elif o.status.value == 'open' %}
   <form method="post" action="/donor/offers/{{ o.id }}/close">
     <button class="btn ghost sm" type="submit">소진·마감하기</button>
   </form>

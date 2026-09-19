@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.config import settings
 from app.db import get_db
 from app.deps import require_role
 from app.forms import WALK_MINUTES, parse_enum, parse_optional_int
@@ -21,6 +22,7 @@ from app.models import (
     ThanksMessage,
     User,
 )
+from app import matching
 from app.rendering import flash, render
 from app.timeutil import current_month, in_month
 
@@ -46,7 +48,10 @@ def feed(request: Request, user: User = Depends(donor_dep), db: Session = Depend
     """나눔 피드 — 동네 전체의 나눔글. 대상자 정보는 어디에도 없다."""
     offers = list(
         db.scalars(
-            select(Offer).join(Shop).order_by(Offer.status, Offer.created_at.desc())
+            select(Offer)
+            .join(Shop)
+            .where(Offer.status != OfferStatus.PENDING, Offer.status != OfferStatus.REJECTED)
+            .order_by(Offer.status, Offer.created_at.desc())
         ).all()
     )
     return render(request, "donor/feed.html", user, "feed", offers=offers)
@@ -137,10 +142,14 @@ def create_offer(
             quantity_note=quantity_note.strip() or None,
             delivery=parse_enum(DeliveryMethod, delivery, "전달 방법"),
             detail=detail.strip() or None,
+            status=matching.initial_offer_status(),
         )
     )
     db.commit()
-    flash(request, "나눔글이 등록되었습니다. 위원이 필요한 곳에 연결해 드립니다.")
+    if settings.offer_approval:
+        flash(request, "나눔글을 접수했습니다. 운영팀 확인 후 위원에게 전달됩니다.")
+    else:
+        flash(request, "나눔글이 등록되었습니다. 위원이 필요한 곳에 연결해 드립니다.")
     return RedirectResponse("/donor", status_code=303)
 
 
@@ -172,7 +181,7 @@ def mine(request: Request, user: User = Depends(donor_dep), db: Session = Depend
 
     # 마감을 되돌릴 수 있는 건 전달까지 가지 않은 나눔글뿐이다 (전달 기록은 실적의 근거).
     reopenable = {
-        o.id: o.status is OfferStatus.CLOSED
+        o.id: o.status in (OfferStatus.CLOSED, OfferStatus.REJECTED)
         and not any(m.status is MatchStatus.DELIVERED for m in o.matches)
         for o in offers
     }
@@ -247,8 +256,17 @@ def reopen_offer(
     if any(m.status is MatchStatus.DELIVERED for m in offer.matches):
         flash(request, "전달이 완료된 나눔글입니다. 새 나눔글로 올려주세요.")
         return RedirectResponse("/donor/mine", status_code=303)
-    if offer.status is not OfferStatus.CLOSED:
+    if offer.status not in (OfferStatus.CLOSED, OfferStatus.REJECTED):
         flash(request, "이미 열려 있는 나눔글입니다.")
+        return RedirectResponse("/donor/mine", status_code=303)
+
+    # 거절당한 글은 고쳐서 다시 올리는 것이므로 심사를 다시 받는다.
+    # 한 번 승인받고 후원자가 내렸던 글은 이미 걸러진 물건이라 바로 돌아간다.
+    if offer.status is OfferStatus.REJECTED:
+        offer.status = matching.initial_offer_status()
+        offer.review_note = None
+        db.commit()
+        flash(request, f"'{offer.title}' 을(를) 다시 접수했습니다. 운영팀 확인을 기다립니다.")
         return RedirectResponse("/donor/mine", status_code=303)
 
     offer.status = OfferStatus.OPEN

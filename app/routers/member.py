@@ -132,7 +132,6 @@ def _case_detail(
         identity=identity,
         access_logs=logs,
         open_offers=open_offers,
-        required_approvals=matching.required_approvals(),
         approval_mode_label=matching.approval_mode_label(),
     )
     if identity is not None:
@@ -297,53 +296,26 @@ def propose_match(
     if offer is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="나눔글을 찾을 수 없습니다.")
 
-    match = matching.propose(db, case, offer, user, note.strip() or None)
-    if match.status is MatchStatus.APPROVED:
-        flash(request, "매칭이 승인되었습니다. 전달 후 완료 처리해 주세요.")
-    else:
-        flash(
-            request,
-            f"매칭을 제안했습니다. {matching.required_approvals()}명 승인이 모이면 확정됩니다.",
-        )
+    matching.propose(db, case, offer, user, note.strip() or None)
+    flash(request, "매칭했습니다. 전달 후 완료 처리해 주세요.")
     return RedirectResponse(f"/member/cases/{case_id}", status_code=303)
 
 
 @router.get("/matches")
 def match_board(request: Request, user: User = Depends(member_dep), db: Session = Depends(get_db)):
     all_matches = list(db.scalars(select(Match).order_by(Match.created_at.desc())).all())
-    my_approved = {
-        m.id for m in all_matches if any(a.approver_id == user.id for a in m.approvals)
-    }
     return render(
         request,
         "member/match.html",
         user,
         "match",
-        pending=[m for m in all_matches if m.status is MatchStatus.PROPOSED],
         approved=[m for m in all_matches if m.status is MatchStatus.APPROVED],
         delivered=[m for m in all_matches if m.status is MatchStatus.DELIVERED],
-        my_approved=my_approved,
+        cancelled=[m for m in all_matches if m.status is MatchStatus.CANCELLED],
         # 전달·취소 버튼은 담당 위원에게만 보인다 (라우트에서도 다시 막는다).
         my_cases={m.id for m in all_matches if m.case.member_id == user.id},
-        required_approvals=matching.required_approvals(),
         approval_mode_label=matching.approval_mode_label(),
     )
-
-
-@router.post("/matches/{match_id}/approve")
-def approve_match(
-    match_id: int, request: Request, user: User = Depends(member_dep), db: Session = Depends(get_db)
-):
-    match = db.get(Match, match_id)
-    if match is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="매칭을 찾을 수 없습니다.")
-    matching.approve(db, match, user)
-    if match.status is MatchStatus.APPROVED:
-        flash(request, "정족수가 채워져 매칭이 확정되었습니다.")
-    else:
-        remaining = matching.required_approvals() - match.approval_count
-        flash(request, f"승인했습니다. {remaining}명의 승인이 더 필요합니다.")
-    return RedirectResponse("/member/matches", status_code=303)
 
 
 @router.post("/matches/{match_id}/deliver")

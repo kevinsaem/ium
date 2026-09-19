@@ -44,7 +44,7 @@ def test_close_removes_offer_from_member_candidates(db, seeded, client):
     assert offer.title not in client.get(f"/member/cases/{case.id}").text
 
 
-def test_cannot_close_offer_a_member_is_matching(db, seeded, client, committee_mode):
+def test_cannot_close_offer_a_member_is_matching(db, seeded, client):
     offer = _open_offer(db)
     case = db.scalar(select(Case).where(Case.status == CaseStatus.OPEN))
     matching.propose(db, case, offer, seeded["member1"])
@@ -69,7 +69,7 @@ def test_reopen_restores_a_closed_offer(db, seeded, client):
     assert db.get(Offer, offer.id).status is OfferStatus.OPEN
 
 
-def test_delivered_offer_cannot_be_reopened(db, seeded, client, member_mode):
+def test_delivered_offer_cannot_be_reopened(db, seeded, client):
     offer = _open_offer(db)
     case = db.scalar(select(Case).where(Case.status == CaseStatus.OPEN))
     match = matching.propose(db, case, offer, seeded["member1"])
