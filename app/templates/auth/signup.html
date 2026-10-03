@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}이음 · 후원자 가입{% endblock %}
+
+{% block frame %}
+<div class="auth">
+  <div class="mark">이음 <b>·</b> 理音</div>
+  <p class="lede">{{ settings.dong }} 나눔가게로 함께해 주세요.<br>가게에 남는 것이 동네 한 가정에 닿습니다.</p>
+
+  {% if error %}<div class="flash warn">{{ error }}</div>{% endif %}
+
+  <form method="post" action="/signup">
+    <div class="field">
+      <label>이름</label>
+      <input name="name" placeholder="예) 김행복" required>
+    </div>
+    <div class="field">
+      <label>휴대폰 번호 (로그인에 씁니다)</label>
+      <input type="tel" name="phone" inputmode="numeric" placeholder="010-1234-5678"
+             autocomplete="tel" required>
+    </div>
+    <div class="field">
+      <label>가게 이름 (없으면 비워 두세요)</label>
+      <input name="shop_name" placeholder="예) 행복미용실">
+    </div>
+    <div class="field">
+      <label>숫자 {{ pin_length }}자리 정하기</label>
+      <input type="password" name="pin" inputmode="numeric" pattern="[0-9]*"
+             maxlength="{{ pin_length }}" autocomplete="new-password" required>
+    </div>
+    <div class="field">
+      <label>한 번 더</label>
+      <input type="password" name="confirm" inputmode="numeric" pattern="[0-9]*"
+             maxlength="{{ pin_length }}" autocomplete="new-password" required>
+    </div>
+    <button class="btn" type="submit">가입하고 시작하기</button>
+  </form>
+
+  <p class="legend">
+    이름과 휴대폰 번호는 협의체가 나눔을 연결하고 연락하는 데만 씁니다.<br>
+    도움받는 분의 정보는 후원자에게 공개되지 않습니다.
+  </p>
+  <a class="btn ghost" href="/login">이미 가입하셨나요? 로그인</a>
+</div>
+{% endblock %}

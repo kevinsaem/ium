@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String, Text, false
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, false, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, Role, TimestampMixin
@@ -21,10 +23,12 @@ class User(Base, TimestampMixin):
     __tablename__ = "user"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    # 위원·운영자는 이메일로, 후원자는 휴대폰 번호로 로그인한다 (위원회 결정, 안건 07).
+    # 후원자에게 이메일을 받지 않기로 했으므로 둘 다 비어 있을 수 있다.
+    email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, default=None)
     password_hash: Mapped[str] = mapped_column(String(255))
     name: Mapped[str] = mapped_column(String(80))
-    phone: Mapped[str | None] = mapped_column(String(40), default=None)
+    phone: Mapped[str | None] = mapped_column(String(40), unique=True, index=True, default=None)
     role: Mapped[Role] = mapped_column(Enum(Role, native_enum=False), index=True)
     dong: Mapped[str] = mapped_column(String(40), default="선부3동")
 
@@ -33,6 +37,10 @@ class User(Base, TimestampMixin):
     # 운영자가 발급하거나 초기화한 임시 비밀번호로는 비밀번호 변경 화면만 쓸 수 있다.
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     appointed_note: Mapped[str | None] = mapped_column(Text, default=None)
+
+    # 숫자 4자리는 1만 가지뿐이라 하나씩 넣어 보는 시도에 약하다. 연속 실패를 세서 잠근다.
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     # Shop 은 user 를 두 번 참조한다(owner_id, certified_by_id). 소유 관계만 연결한다.
     shop: Mapped["Shop | None"] = relationship(

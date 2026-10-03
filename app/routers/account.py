@@ -14,7 +14,8 @@ from app.db import get_db
 from app.deps import current_user
 from app.models import User
 from app.rendering import HOME, flash, render
-from app.security import MIN_PASSWORD_LENGTH
+from app.models import Role
+from app.security import MIN_PASSWORD_LENGTH, PIN_LENGTH
 
 router = APIRouter(prefix="/account")
 
@@ -24,13 +25,16 @@ def password_form(request: Request, user: User = Depends(current_user)):
     forced = user.must_change_password
     # 변경 전에는 하단 탭을 숨긴다. 눌러 봐야 이 화면으로 되돌아올 뿐이다.
     hide_tabs = {"tabs": []} if forced else {}
+    # 후원자는 숫자 4자리, 위원·운영자는 비밀번호. 쓰는 말이 달라 화면도 갈린다.
+    is_pin = user.role is Role.DONOR
     return render(
         request,
         "account/password.html",
         user,
         "",
         forced=forced,
-        min_length=MIN_PASSWORD_LENGTH,
+        is_pin=is_pin,
+        min_length=PIN_LENGTH if is_pin else MIN_PASSWORD_LENGTH,
         home=HOME[user.role],
         **hide_tabs,
     )
@@ -45,13 +49,12 @@ def change_password(
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
+    change = accounts.change_pin if user.role is Role.DONOR else accounts.change_password
     try:
-        accounts.change_password(
-            db, user, current=current_password, new=new_password, confirm=confirm_password
-        )
+        change(db, user, current=current_password, new=new_password, confirm=confirm_password)
     except accounts.AccountError as exc:
         flash(request, str(exc))
         return RedirectResponse("/account/password", status_code=303)
 
-    flash(request, "비밀번호를 바꿨습니다.")
+    flash(request, "숫자 4자리를 바꿨습니다." if user.role is Role.DONOR else "비밀번호를 바꿨습니다.")
     return RedirectResponse(HOME[user.role], status_code=303)

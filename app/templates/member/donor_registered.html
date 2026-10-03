@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="sectit">후원자 대신 등록</div>
+
+<div class="card" style="cursor:default">
+  <div class="row">
+    <div class="thumb ic-svg">{{ icon('store') }}</div>
+    <div class="meta">
+      <h3>{{ donor.name }}</h3>
+      <div class="sub">{{ donor.phone }}{% if donor.shop %} · {{ donor.shop.name }}{% endif %}</div>
+    </div>
+  </div>
+</div>
+
+<div class="sensitive">
+  <div class="shd"><span class="ic-svg">{{ icon('lock') }}</span> 숫자 4자리 · 이 화면에서 한 번만 보입니다</div>
+  <p class="temp-password" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:28px;font-weight:700;letter-spacing:.16em;margin:6px 0 10px;user-select:all">{{ pin }}</p>
+  <p class="defmeta" style="margin:0">
+    후원자께 알려 주세요. 로그인은 <b>휴대폰 번호 + 이 숫자 4자리</b>이고,
+    첫 로그인에서 본인이 새 숫자를 정하게 됩니다.
+  </p>
+</div>
+
+<p class="legend">
+  이 화면을 벗어나면 다시 볼 수 없습니다. 잊으셨다면 운영자가 전화번호 뒤 네 자리로 되돌려 드립니다.<br>
+  등록 사실은 <b>계정 기록</b>에 남습니다.
+</p>
+<a class="btn ghost" href="/member/matches">매칭 화면으로</a>
+{% endblock %}

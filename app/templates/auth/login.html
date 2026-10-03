@@ -8,6 +8,28 @@
 
   {% if error %}<div class="flash warn">{{ error }}</div>{% endif %}
 
+  <div class="sectit">후원자 로그인</div>
+  <form method="post" action="/login">
+    <div class="field">
+      <label>휴대폰 번호</label>
+      <input type="tel" name="phone" inputmode="numeric" placeholder="010-1234-5678"
+             autocomplete="tel" required>
+    </div>
+    <div class="field">
+      <label>숫자 {{ pin_length }}자리</label>
+      <input type="password" name="pin" inputmode="numeric" pattern="[0-9]*"
+             maxlength="{{ pin_length }}" autocomplete="current-password" required>
+    </div>
+    <button class="btn" type="submit">로그인</button>
+  </form>
+  <p class="legend" style="margin-top:9px">
+    처음이신가요? <a href="/signup"><b>후원자 가입하기</b></a><br>
+    숫자를 잊으셨으면 협의체에 말씀해 주세요. 전화번호 뒤 {{ pin_length }}자리로 되돌려 드립니다.
+  </p>
+
+  <div class="divline" style="margin:18px 0"></div>
+
+  <div class="sectit">위원 · 운영자 로그인</div>
   <form method="post" action="/login">
     <div class="field">
       <label>이메일</label>
@@ -17,7 +39,7 @@
       <label>비밀번호</label>
       <input type="password" name="password" required autocomplete="current-password">
     </div>
-    <button class="btn" type="submit">로그인</button>
+    <button class="btn ghost" type="submit">로그인</button>
   </form>
 
   {% if demo_users %}

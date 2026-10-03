@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import identity_service, matching, retention
+from app import accounts, identity_service, matching, retention
 from app.db import get_db
 from app.deps import require_role
 from app.forms import HOUSEHOLD_SIZE, parse_optional_int
@@ -370,6 +370,36 @@ def cancel_match(
     matching.cancel(db, match, user, reason.strip())
     flash(request, "매칭을 취소했습니다. 나눔글은 다시 '나눔 가능'으로 돌아갑니다.")
     return RedirectResponse("/member/matches", status_code=303)
+
+
+@router.post("/donors")
+def register_donor_account(
+    request: Request,
+    name: str = Form(""),
+    phone: str = Form(""),
+    shop_name: str = Form(""),
+    user: User = Depends(member_dep),
+    db: Session = Depends(get_db),
+):
+    """위원이 후원자를 대신 등록한다 (위원회 결정, 안건 07).
+
+    가게를 찾아다니며 모으는 사람이 위원이다. 그 자리에서 바로 만들어 드릴 수 있어야 한다.
+    숫자 4자리는 화면에 한 번만 보이고, 후원자는 첫 로그인에서 바꾼다.
+    """
+    try:
+        donor, pin = accounts.register_donor(
+            db, user, name=name, phone=phone, shop_name=shop_name
+        )
+    except accounts.AccountError as exc:
+        flash(request, str(exc))
+        return RedirectResponse("/member/matches", status_code=303)
+
+    response = render(
+        request, "member/donor_registered.html", user, "match", donor=donor, pin=pin
+    )
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 @router.get("/report")

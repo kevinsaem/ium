@@ -69,13 +69,33 @@
   위원은 첫 로그인에서 새 비밀번호를 정해야 앱을 쓸 수 있습니다.
 </p>
 
+<div class="sectit">후원자 대신 등록</div>
+<form method="post" action="/office/donors">
+  <div class="field"><label>이름</label><input name="name" placeholder="예) 김행복" required></div>
+  <div class="field">
+    <label>휴대폰 번호 (로그인 아이디)</label>
+    <input type="tel" name="phone" inputmode="numeric" placeholder="010-1234-5678" required>
+  </div>
+  <div class="field"><label>가게 이름 (선택)</label><input name="shop_name" placeholder="예) 행복미용실"></div>
+  <button class="btn ghost" type="submit">등록하고 숫자 4자리 받기</button>
+</form>
+<p class="legend">
+  후원자는 <a href="/signup">직접 가입</a>할 수도 있습니다. 연세가 있어 어려워하시는 분만 대신 등록해 주세요.
+</p>
+
 <div class="sectit">후원자</div>
 {% for d in donors %}
 <div class="card" style="cursor:default;padding:11px 13px">
   <div class="meta">
     <h3 style="font-size:13px">{{ d.name }}</h3>
-    <div class="sub">{{ d.shop.name if d.shop else '가게 미등록' }} · {{ d.email }}</div>
+    <div class="sub">{{ d.shop.name if d.shop else '가게 미등록' }} · {{ d.phone or d.email or '연락처 없음' }}</div>
   </div>
+  {% if d.phone %}
+  <form method="post" action="/office/donors/{{ d.id }}/reset"
+        onsubmit="return confirm('{{ d.name }}님의 숫자 4자리를 전화번호 뒤 네 자리로 되돌립니다. 계속할까요?')">
+    <button class="btn ghost sm" type="submit">숫자 초기화</button>
+  </form>
+  {% endif %}
 </div>
 {% else %}
 <div class="empty" style="padding:22px">등록된 후원자가 없습니다.</div>

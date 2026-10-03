@@ -1,20 +1,21 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="sectit">{{ '위원 계정 발급' if action == 'issue' else '비밀번호 초기화' }}</div>
+<div class="sectit">{{ {'issue': '위원 계정 발급', 'register': '후원자 대신 등록', 'reset_pin': '후원자 숫자 초기화'}.get(action, '비밀번호 초기화') }}</div>
 
 <div class="card" style="cursor:default">
   <div class="meta">
     <h3>{{ member.name }}</h3>
-    <div class="sub">{{ member.email }}{% if member.appointed_note %} · {{ member.appointed_note }}{% endif %}</div>
+    <div class="sub">{{ member.email or member.phone }}{% if member.appointed_note %} · {{ member.appointed_note }}{% endif %}</div>
   </div>
 </div>
 
 <div class="sensitive">
-  <div class="shd"><span class="ic-svg">{{ icon('lock') }}</span> 임시 비밀번호 · 이 화면에서 한 번만 보입니다</div>
+  <div class="shd"><span class="ic-svg">{{ icon('lock') }}</span> {{ '숫자 4자리' if action in ('register', 'reset_pin') else '임시 비밀번호' }} · 이 화면에서 한 번만 보입니다</div>
   <p class="temp-password" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:22px;font-weight:700;letter-spacing:.06em;margin:6px 0 10px;user-select:all">{{ temp_password }}</p>
   <p class="defmeta" style="margin:0">
-    위원께 직접 전해 주세요. 첫 로그인에서 새 비밀번호를 정해야 앱을 쓸 수 있습니다.
-    단체방이나 문자에 남기지 않는 것이 안전합니다.
+    {% if action == 'reset_pin' %}전화번호 뒤 네 자리입니다. 후원자가 이미 아는 값이라 따로 전하지 않아도 됩니다.{% elif action == 'register' %}후원자께 직접 전해 주세요. 카톡으로 보내셔도 됩니다.{% else %}위원께 직접 전해 주세요.{% endif %}
+    첫 로그인에서 새로 정해야 앱을 쓸 수 있습니다.
+    {% if action != 'reset_pin' %}단체방에 남기지 않는 것이 안전합니다.{% endif %}
   </p>
 </div>
 

@@ -40,6 +40,28 @@ def verify_password(password: str, stored: str) -> bool:
     return hmac.compare_digest(dk.hex(), dk_hex)
 
 
+# 후원자 로그인은 숫자 4자리다 (위원회 결정, 안건 07). "굉장히 단순해야 된다."
+# 그만큼 약하므로 app/accounts.py 의 실패 횟수 제한과 함께 쓰는 것을 전제로 한다.
+PIN_LENGTH = 4
+
+
+def generate_pin() -> str:
+    return "".join(secrets.choice("0123456789") for _ in range(PIN_LENGTH))
+
+
+def validate_pin(pin: str, *, phone: str | None = None) -> str | None:
+    """숫자 4자리 규칙. 문제가 없으면 None."""
+    text = (pin or "").strip()
+    if len(text) != PIN_LENGTH or not text.isdigit():
+        return f"숫자 {PIN_LENGTH}자리로 입력해 주세요."
+    if len(set(text)) == 1:
+        return "같은 숫자만 네 번은 쓸 수 없습니다. 다른 숫자를 섞어 주세요."
+    if phone and text == phone[-PIN_LENGTH:]:
+        # 초기화하면 전화번호 뒤 네 자리가 된다. 그 값을 그대로 다시 쓰면 초기화와 같다.
+        return "전화번호 뒤 네 자리와 다른 숫자로 정해 주세요."
+    return None
+
+
 MIN_PASSWORD_LENGTH = 10
 # 헷갈리는 글자(0·o, 1·l·i)를 뺐다. 운영자가 소리 내어 불러 주거나 손으로 적어 전하기 때문이다.
 _TEMP_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"

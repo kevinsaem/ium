@@ -509,6 +509,48 @@ def reset_member_password(
     return _show_temp_password(request, user, member, temp, "reset")
 
 
+@router.post("/donors")
+def register_donor_account(
+    request: Request,
+    name: str = Form(""),
+    phone: str = Form(""),
+    shop_name: str = Form(""),
+    user: User = Depends(office_dep),
+    db: Session = Depends(get_db),
+):
+    """후원자를 대신 등록한다 (위원회 결정, 안건 07).
+
+    "후원하시는 분이 연세가 있으시고 (가입을) 어려워할 수도 있으니까" 운영자가 만들어 드린다.
+    """
+    try:
+        donor, pin = accounts.register_donor(
+            db, user, name=name, phone=phone, shop_name=shop_name
+        )
+    except accounts.AccountError as exc:
+        flash(request, str(exc))
+        return RedirectResponse("/office/members", status_code=303)
+
+    return _show_temp_password(request, user, donor, pin, "register")
+
+
+@router.post("/donors/{donor_id}/reset")
+def reset_donor_account(
+    donor_id: int, request: Request, user: User = Depends(office_dep), db: Session = Depends(get_db)
+):
+    """후원자 숫자 4자리를 전화번호 뒤 네 자리로 초기화한다."""
+    donor = db.get(User, donor_id)
+    if donor is None or donor.role is not Role.DONOR:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="후원자를 찾을 수 없습니다.")
+
+    try:
+        pin = accounts.reset_donor_pin(db, user, donor)
+    except accounts.AccountError as exc:
+        flash(request, str(exc))
+        return RedirectResponse("/office/members", status_code=303)
+
+    return _show_temp_password(request, user, donor, pin, "reset_pin")
+
+
 @router.post("/members/{member_id}/toggle")
 def toggle_member(
     member_id: int, request: Request, user: User = Depends(office_dep), db: Session = Depends(get_db)
