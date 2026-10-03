@@ -32,14 +32,17 @@ from app.models import (
 from app.security import hash_password
 
 PASSWORD = "ium1234"
+# 후원자는 휴대폰 번호 + 숫자 4자리로 로그인한다 (위원회 결정, 안건 07).
+# 시연용이라 번호와 숫자를 외우기 쉽게 맞춰 두었다.
+DONOR_PIN = "2026"
 
 DONORS = [
-    # (이름, 이메일, 가게, 업종, 도보, 인증여부)
-    ("김행복", "happy@ium.test", "행복미용실", "미용", 4, True),
-    ("박순자", "mom@ium.test", "엄마손칼국수", "분식", 7, True),
-    ("강대표", "kangmart@ium.test", "강마트", "마트", 3, True),
-    ("한빛", "hanbit@ium.test", "한빛철물점", "철물", 9, False),
-    ("최세탁", "blue@ium.test", "푸른세탁소", "세탁", 6, True),
+    # (이름, 휴대폰, 가게, 업종, 도보, 인증여부)
+    ("김행복", "01010000001", "행복미용실", "미용", 4, True),
+    ("박순자", "01010000002", "엄마손칼국수", "분식", 7, True),
+    ("강대표", "01010000003", "강마트", "마트", 3, True),
+    ("한빛", "01010000004", "한빛철물점", "철물", 9, False),
+    ("최세탁", "01010000005", "푸른세탁소", "세탁", 6, True),
 ]
 
 OFFERS = [
@@ -98,9 +101,9 @@ def seed() -> None:
         db.flush()
 
         shops: dict[str, Shop] = {}
-        for name, email, shop_name, category, walk, certified in DONORS:
+        for name, phone, shop_name, category, walk, certified in DONORS:
             donor = User(
-                email=email, password_hash=hash_password(PASSWORD), name=name, role=Role.DONOR
+                phone=phone, password_hash=hash_password(DONOR_PIN), name=name, role=Role.DONOR
             )
             db.add(donor)
             db.flush()
@@ -146,9 +149,8 @@ def seed() -> None:
             cases.append(case)
         db.commit()
 
-        # C어르신 ← 이불 세탁: 승인까지 마치고 전달 완료 상태로 만들어 둔다.
+        # C어르신 ← 이불 세탁: 전달 완료 상태로 만들어 둔다.
         match = matching.propose(db, cases[2], offers["이불 빨래 무료 세탁"], member1, "정기 방문 시 수령")
-        matching.approve(db, match, member2, comment="협의체 공동 결정")
         matching.mark_delivered(db, match, member1, "8/25 방문 전달 완료")
         db.add(
             ThanksMessage(
@@ -158,14 +160,24 @@ def seed() -> None:
             )
         )
 
-        # A가정 ← 도시락: 승인 대기 상태로 남겨 둔다 (승인 흐름 확인용).
+        # A가정 ← 도시락: 전달 대기 상태로 남겨 둔다.
         matching.propose(db, cases[0], offers["따뜻한 한끼 도시락 5개"], member1, "화요일 오전 수령 예정")
+
+        # 나눔글 하나는 운영팀 승인 대기로 남겨 둔다 — 승인 화면을 바로 볼 수 있게 (안건 05).
+        db.add(
+            Offer(
+                shop_id=shops["한빛철물점"].id, title="방충망 수리 2가구",
+                kind=OfferKind.REPAIR, icon=KIND_ICON.get("repair", "fix"),
+                quantity_note="2가구", delivery=DeliveryMethod.BENEFICIARY_VISIT,
+                status=OfferStatus.PENDING,
+            )
+        )
         db.commit()
 
-        print("시드 완료. 비밀번호는 모두 'ium1234' 입니다.")
-        print("  운영자  office@ium.test")
-        print("  위원    member1@ium.test / member2@ium.test")
-        print("  후원자  happy@ium.test 외 4명")
+        print("시드 완료.")
+        print(f"  운영자  office@ium.test (비밀번호 {PASSWORD})")
+        print(f"  위원    member1@ium.test / member2@ium.test (비밀번호 {PASSWORD})")
+        print(f"  후원자  010-1000-0001 외 4명 (숫자 {DONOR_PIN})")
     finally:
         db.close()
 
