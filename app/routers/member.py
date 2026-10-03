@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import identity_service, matching
+from app import identity_service, matching, retention
 from app.db import get_db
 from app.deps import require_role
 from app.forms import HOUSEHOLD_SIZE, parse_optional_int
@@ -123,6 +123,7 @@ def _case_detail(
         ).all()
     )
 
+    months = retention.current(db).identity_retention_months
     response = render(
         request,
         "member/case_detail.html",
@@ -133,6 +134,8 @@ def _case_detail(
         access_logs=logs,
         open_offers=open_offers,
         approval_mode_label=matching.approval_mode_label(),
+        retention=retention.status_for(case, months),
+        retention_months=months,
     )
     if identity is not None:
         # 복호화된 화면은 디스크 캐시·프록시·뒤로가기에 남기지 않는다.
@@ -251,6 +254,7 @@ def close_case(
         return RedirectResponse(f"/member/cases/{case_id}", status_code=303)
 
     case.status = CaseStatus.CLOSED
+    case.closed_at = datetime.now(timezone.utc)
     db.commit()
     if case.has_identity:
         # 종결이 곧 파기는 아니다. 파기는 되돌릴 수 없으므로 위원이 직접 눌러야 한다.
@@ -274,6 +278,7 @@ def reopen_case(
         return RedirectResponse(f"/member/cases/{case_id}", status_code=303)
 
     case.status = CaseStatus.OPEN
+    case.closed_at = None  # 보관 기한도 함께 멈춘다
     db.commit()
     if case.has_identity:
         flash(request, "종결을 되돌렸습니다.")

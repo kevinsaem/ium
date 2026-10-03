@@ -57,6 +57,9 @@
   {% elif case.has_identity %}
     <p class="defmeta" style="margin:0 0 10px">
       등록된 식별정보가 있습니다. 열람하려면 사유를 남겨야 합니다.
+      {% if retention.deadline %}
+      <br><b>{{ retention.label }}</b> (기한 {{ retention.deadline }}) — 종결 후 {{ retention_months }}개월까지 보관합니다.
+      {% endif %}
     </p>
     <form method="post" action="/member/cases/{{ case.id }}/identity/reveal">
       <div class="field">
@@ -91,7 +94,7 @@
 {% for log in access_logs %}
 <div class="card" style="cursor:default;padding:11px 13px">
   <div class="meta">
-    <h3 style="font-size:12.5px">{{ log.actor.name }} · {{ {'read': '열람', 'write': '수정', 'handover': '담당 변경'}.get(log.action, log.action) }}</h3>
+    <h3 style="font-size:12.5px">{{ log.actor.name }} · {{ {'read': '열람', 'write': '수정', 'purge': '파기', 'handover': '담당 변경'}.get(log.action, log.action) }}</h3>
     <div class="sub">{{ log.accessed_at | local }} · {{ log.reason }}</div>
   </div>
 </div>

@@ -18,6 +18,9 @@ MATRIX: dict[str, dict[str, tuple[Role, ...]]] = {
     "case_assignment": {"read": (Role.MEMBER, Role.OFFICE),            "write": (Role.OFFICE,)},
     # 🔴 식별정보는 위원만. 운영자도 읽을 수 없다.
     "case_identity":  {"read": (Role.MEMBER,),                          "write": (Role.MEMBER,)},
+    # 보관 기한이 지난 식별정보를 지우는 권한. 읽기는 포함되지 않는다 —
+    # 운영자는 내용을 보지 않고 파기만 집행한다 (위원회 결정, 안건 01).
+    "identity_retention": {"read": (Role.OFFICE,),                      "write": (Role.OFFICE,)},
     "match":          {"read": (Role.MEMBER, Role.OFFICE),             "write": (Role.MEMBER,)},
     # 나눔글을 위원에게 노출할지는 운영팀이 결정한다. 협의체 이름으로 나가는 물건이라서다.
     "offer_review":   {"read": (Role.DONOR, Role.MEMBER, Role.OFFICE), "write": (Role.OFFICE,)},

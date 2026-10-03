@@ -70,4 +70,23 @@
 <p class="legend">
   운영자는 <b>비식별 코드와 진행 상태</b>만 봅니다. 식별정보는 보관 여부만 표시됩니다.
 </p>
+
+<div class="sectit">식별정보 보관 중인 종결 케이스 · {{ retention_rows | length }}건</div>
+{% for r in retention_rows %}
+<div class="card" style="cursor:default;padding:11px 13px">
+  <div class="meta">
+    <h3 style="font-size:12.5px">{{ r.case.code }}</h3>
+    <div class="sub">담당 {{ r.case.member.name }} · 종결 {{ r.case.closed_at | local('%Y-%m-%d') }}</div>
+    <div class="foot">
+      <span class="tag {{ 'fill' if r.is_overdue else 'line' }}">{{ r.label }}</span>
+      {% if r.deadline %}<span class="tag soft">기한 {{ r.deadline }}</span>{% endif %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="empty" style="padding:22px">보관 중인 식별정보가 없습니다.</div>
+{% endfor %}
+<p class="legend">
+  종결 후 <b>{{ retention_months }}개월</b>까지 보관합니다 (운영 설정에서 변경). 파기는 담당 위원이 누릅니다.
+</p>
 {% endblock %}

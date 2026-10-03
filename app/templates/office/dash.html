@@ -1,5 +1,15 @@
 {% extends "base.html" %}
 {% block body %}
+{% if overdue %}
+<div class="banner">
+  <div class="seal ic-svg">{{ icon('lock') }}</div>
+  <div>
+    <b>식별정보 파기 기한 초과 {{ overdue | length }}건</b>
+    <p>보관 기간이 지난 케이스가 있습니다. 담당 위원에게 파기를 요청해 주세요. 운영자는 내용을 볼 수 없습니다.</p>
+  </div>
+</div>
+{% endif %}
+
 <div class="sectit">승인 대기 나눔글 · {{ pending_offers | length }}건</div>
 {% for o in pending_offers %}
 <div class="card" style="cursor:default">
@@ -85,11 +95,25 @@
   {% endfor %}
 </table>
 
+<div class="sectit">운영 설정</div>
+<form method="post" action="/office/policy/retention">
+  <div class="field">
+    <label>식별정보 보관 기간 (케이스 종결 후, 개월)</label>
+    <input name="months" type="number" min="1" max="60" value="{{ policy.identity_retention_months }}" required>
+  </div>
+  <button class="btn ghost" type="submit">보관 기간 저장</button>
+</form>
+<p class="legend">
+  종결한 날부터 이 기간이 지나면 실명·연락처를 파기합니다. 비식별 케이스 기록과 통계는 남습니다.<br>
+  기한이 지난 케이스는 위 경고와 <b>기록 탭</b>에 표시됩니다. 파기는 담당 위원이 직접 누릅니다.
+  {% if policy.updated_by %}<br>마지막 변경: {{ policy.updated_at | local }} · {{ policy.updated_by.name }}{% endif %}
+</p>
+
 <div class="sectit">최근 열람 기록</div>
 {% for log in audit_logs %}
 <div class="card" style="cursor:default;padding:11px 13px">
   <div class="meta">
-    <h3 style="font-size:12.5px">{{ log.actor.name }} · {{ {'read': '열람', 'write': '수정', 'handover': '담당 변경'}.get(log.action, log.action) }} · {{ log.case.code }}</h3>
+    <h3 style="font-size:12.5px">{{ log.actor.name }} · {{ {'read': '열람', 'write': '수정', 'purge': '파기', 'handover': '담당 변경'}.get(log.action, log.action) }} · {{ log.case.code }}</h3>
     <div class="sub">{{ log.accessed_at | local }} · {{ log.reason }}</div>
   </div>
 </div>

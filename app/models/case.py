@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String, Text
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CaseStatus, TimestampMixin
@@ -39,6 +41,8 @@ class Case(Base, TimestampMixin):
     status: Mapped[CaseStatus] = mapped_column(
         Enum(CaseStatus, native_enum=False), default=CaseStatus.OPEN, index=True
     )
+    # 식별정보 보관 기한은 여기서부터 센다 (위원회 결정, 안건 01)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     # 공적지원 연계 체크 — 단발 나눔으로 끝내지 않고 공적 복지로 넘기는 트리거
     public_support_linked: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -112,11 +112,30 @@ def upsert_identity(
     return identity
 
 
-def purge_identity(db: Session, case: Case, actor: User, reason: str) -> None:
-    """케이스 종결 후 식별정보 파기. 비식별 Case 레코드와 통계는 그대로 남는다."""
-    _authorize(actor, case, "write")
+def _destroy(db: Session, case: Case, actor: User, reason: str) -> None:
     if case.identity is not None:
         db.delete(case.identity)
         case.identity = None
-    _log(db, case, actor, "write", f"식별정보 파기: {reason}")
+    _log(db, case, actor, "purge", reason)
     db.commit()
+
+
+def purge_identity(db: Session, case: Case, actor: User, reason: str) -> None:
+    """담당 위원이 누르는 파기. 비식별 Case 레코드와 통계는 그대로 남는다."""
+    _authorize(actor, case, "write")
+    _destroy(db, case, actor, reason)
+
+
+def purge_expired_identity(db: Session, case: Case, actor: User, reason: str) -> None:
+    """보관 기한이 지난 식별정보를 운영자가 일괄 파기한다 (위원회 결정, 안건 01).
+
+    열람 권한과는 다른 권한이다. 이 함수는 복호화하지 않는다 — 내용을 보지 않고 지우기만
+    한다. 그래서 운영자가 법정 보관 기한을 집행할 수 있으면서도 '운영자는 식별정보를 볼 수
+    없다'는 원칙이 그대로 유지된다. 권한 매트릭스의 identity_retention 이 이 경계다.
+    """
+    if not can(actor.role, "identity_retention", "write"):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="보관 기한 집행은 운영자만 할 수 있습니다.",
+        )
+    _destroy(db, case, actor, reason)

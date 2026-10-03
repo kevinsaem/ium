@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app import accounts, identity_service, matching
+from app import accounts, identity_service, matching, retention
 from app.config import settings
 from app.db import get_db
 from app.deps import require_role
@@ -88,6 +88,10 @@ def dashboard(request: Request, user: User = Depends(office_dep), db: Session = 
         ).all()
     )
 
+    policy = retention.current(db)
+    # 기한이 지났는데 식별정보가 남은 케이스. 운영자는 건수만 본다 — 파기는 담당 위원 몫이다.
+    overdue = retention.expired(db, policy.identity_retention_months)
+
     pending_offers = list(
         db.scalars(
             select(Offer)
@@ -104,6 +108,8 @@ def dashboard(request: Request, user: User = Depends(office_dep), db: Session = 
         "dash",
         pending_offers=pending_offers,
         approval_mode_label=matching.approval_mode_label(),
+        policy=policy,
+        overdue=overdue,
         stats=stats,
         goals=goals,
         audit_logs=audit_logs,
@@ -112,7 +118,12 @@ def dashboard(request: Request, user: User = Depends(office_dep), db: Session = 
 
 
 AUDIT_PAGE_SIZE = 50
-AUDIT_ACTION_LABELS = {"read": "열람", "write": "수정", "handover": "담당 변경"}
+AUDIT_ACTION_LABELS = {
+    "read": "열람",
+    "write": "수정",
+    "purge": "파기",
+    "handover": "담당 변경",
+}
 
 
 def _pending_offer(db: Session, offer_id: int) -> Offer:
@@ -159,6 +170,31 @@ def reject_offer(
     return RedirectResponse("/office", status_code=303)
 
 
+@router.post("/policy/retention")
+def update_retention(
+    request: Request,
+    months: str = Form(""),
+    user: User = Depends(office_dep),
+    db: Session = Depends(get_db),
+):
+    """식별정보 보관 기간 변경 (위원회 결정, 안건 01).
+
+    "하드코딩으로 하지 말고 관리자 설정에서 정할 수 있도록 한다" — 그래서 .env 가 아니라
+    DB 에 두고 이 화면에서 바꾼다. 행정복지센터 협의 결과에 따라 달라질 수 있기 때문이다.
+    """
+    try:
+        policy = retention.update_retention(db, user, months)
+    except retention.PolicyError as exc:
+        flash(request, str(exc))
+        return RedirectResponse("/office", status_code=303)
+
+    flash(
+        request,
+        f"식별정보 보관 기간을 종결 후 {policy.identity_retention_months}개월로 정했습니다.",
+    )
+    return RedirectResponse("/office", status_code=303)
+
+
 @router.get("/report")
 def report(
     request: Request, month: str = "", user: User = Depends(office_dep), db: Session = Depends(get_db)
@@ -194,6 +230,17 @@ def report(
         )
     ]
 
+    # 종결됐지만 식별정보가 남은 케이스 — 기한이 다가오는 순서로
+    policy = retention.current(db)
+    retention_rows = sorted(
+        (
+            retention.status_for(c, policy.identity_retention_months, today)
+            for c in cases
+            if c.status is CaseStatus.CLOSED and c.has_identity
+        ),
+        key=lambda r: (r.days_left if r.days_left is not None else 9999),
+    )
+
     prev_y, prev_m = shift_month(year, mon, -1)
     next_y, next_m = shift_month(year, mon, 1)
     has_next = (next_y, next_m) <= current_month()
@@ -204,6 +251,8 @@ def report(
         "records",
         report=monthly,
         open_rows=open_rows,
+        retention_rows=retention_rows,
+        retention_months=policy.identity_retention_months,
         prev_month=f"{prev_y:04d}-{prev_m:02d}",
         prev_label=month_label(prev_y, prev_m),
         next_month=f"{next_y:04d}-{next_m:02d}" if has_next else None,
