@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app import accounts, identity_service, matching, retention
+from app import accounts, identity_service, matching, pilot, retention
 from app.config import settings
 from app.db import get_db
 from app.deps import require_role
@@ -43,16 +43,9 @@ from app.timeutil import (
 router = APIRouter(prefix="/office", dependencies=[Depends(require_role(Role.OFFICE))])
 office_dep = require_role(Role.OFFICE)
 
-# 슬라이드 6 안건 ④ 파일럿 성공 지표 — 초안 값. 위원회 확정 시 여기만 고치면 된다.
-PILOT_GOALS = [
-    {"key": "certified_shops", "label": "인증 나눔가게", "target": 10, "unit": "곳"},
-    {"key": "total_matches", "label": "매칭 건수", "target": 20, "unit": "건"},
-    {"key": "active_members", "label": "활동 위원", "target": 8, "unit": "명"},
-]
-
-
 @router.get("")
 def dashboard(request: Request, user: User = Depends(office_dep), db: Session = Depends(get_db)):
+    policy = retention.current(db)
     matches = list(db.scalars(select(Match)).all())
     year, month = current_month()
     month_delivered = sum(
@@ -76,7 +69,10 @@ def dashboard(request: Request, user: User = Depends(office_dep), db: Session = 
         ),
     }
 
-    goals = [{**g, "current": stats[g["key"]]} for g in PILOT_GOALS]
+    # 위원회 결정(안건 04): 단계별로 센다. 기간이 설정돼 있으면 그 기간만.
+    pilot_window = pilot.window(policy)
+    funnel = pilot.funnel(db, pilot_window)
+    goals = pilot.goals(funnel)
 
     # 운영자는 '열람했다는 사실'만 본다. 열람된 내용은 이 화면에 오지 않는다.
     audit_logs = list(
@@ -88,7 +84,6 @@ def dashboard(request: Request, user: User = Depends(office_dep), db: Session = 
         ).all()
     )
 
-    policy = retention.current(db)
     # 기한이 지났는데 식별정보가 남은 케이스. 운영자는 건수만 본다 — 파기는 담당 위원 몫이다.
     overdue = retention.expired(db, policy.identity_retention_months)
 
@@ -110,6 +105,9 @@ def dashboard(request: Request, user: User = Depends(office_dep), db: Session = 
         approval_mode_label=matching.approval_mode_label(),
         policy=policy,
         overdue=overdue,
+        pilot_window=pilot_window,
+        pilot_days_left=pilot_window.days_left(),
+        funnel=funnel,
         stats=stats,
         goals=goals,
         audit_logs=audit_logs,
@@ -193,6 +191,68 @@ def update_retention(
         f"식별정보 보관 기간을 종결 후 {policy.identity_retention_months}개월로 정했습니다.",
     )
     return RedirectResponse("/office", status_code=303)
+
+
+@router.post("/policy/pilot")
+def update_pilot(
+    request: Request,
+    start: str = Form(""),
+    months: str = Form(""),
+    user: User = Depends(office_dep),
+    db: Session = Depends(get_db),
+):
+    """파일럿 기간 설정 (위원회 결정, 안건 04).
+
+    시작일은 "완성되고 나서 해야 되는 거니까" 회의에서 정하지 않았다. 운영자가 앱을 열 날을
+    여기에 넣으면 그때부터 지표를 센다.
+    """
+    try:
+        policy = pilot_settings_update(db, user, start, months)
+    except retention.PolicyError as exc:
+        flash(request, str(exc))
+        return RedirectResponse("/office", status_code=303)
+
+    if policy.pilot_start is None:
+        flash(request, "파일럿 시작일을 비웠습니다. 지표를 누적으로 셉니다.")
+    else:
+        flash(
+            request,
+            f"파일럿 기간을 {policy.pilot_start} 부터 {policy.pilot_months}개월로 정했습니다.",
+        )
+    return RedirectResponse("/office", status_code=303)
+
+
+def pilot_settings_update(db: Session, actor: User, raw_start: str, raw_months: str):
+    """시작일과 기간을 함께 저장한다. 잘못된 값은 읽을 수 있는 문장으로 돌려준다."""
+    from datetime import date as _date
+
+    policy = retention.current(db)
+
+    text = (raw_months or "").strip()
+    if text:
+        try:
+            months = int(text)
+        except ValueError:
+            raise retention.PolicyError("파일럿 기간은 숫자(개월)로 입력해 주세요.") from None
+        if not 1 <= months <= 24:
+            raise retention.PolicyError("파일럿 기간은 1개월에서 24개월 사이로 정해 주세요.")
+        policy.pilot_months = months
+
+    start_text = (raw_start or "").strip()
+    if not start_text:
+        policy.pilot_start = None
+    else:
+        try:
+            policy.pilot_start = _date.fromisoformat(start_text)
+        except ValueError:
+            raise retention.PolicyError(
+                "시작일은 2026-10-15 처럼 입력해 주세요."
+            ) from None
+
+    policy.updated_by_id = actor.id
+    db.commit()
+    db.refresh(policy)
+    return policy
 
 
 @router.get("/report")

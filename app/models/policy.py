@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, func, text
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -16,6 +16,10 @@ if TYPE_CHECKING:
 DEFAULT_RETENTION_MONTHS = 3
 MIN_RETENTION_MONTHS = 1
 MAX_RETENTION_MONTHS = 60
+
+# 위원회 결정(안건 04): 파일럿 기간은 1개월. 시작일은 "완성되고 나서 해야 되는 거니까"
+# 지금 정하지 않고 운영자가 화면에서 넣는다.
+DEFAULT_PILOT_MONTHS = 1
 
 
 class Policy(Base):
@@ -35,6 +39,12 @@ class Policy(Base):
     # 케이스 종결 후 식별정보를 며칠까지 보관할지 — 개월 단위
     identity_retention_months: Mapped[int] = mapped_column(
         Integer, default=DEFAULT_RETENTION_MONTHS, server_default=text(str(DEFAULT_RETENTION_MONTHS))
+    )
+
+    # 파일럿 기간. 시작일이 비어 있으면 지표를 누적으로 보여 준다.
+    pilot_start: Mapped[date | None] = mapped_column(Date, default=None)
+    pilot_months: Mapped[int] = mapped_column(
+        Integer, default=DEFAULT_PILOT_MONTHS, server_default=text(str(DEFAULT_PILOT_MONTHS))
     )
 
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("user.id"), default=None)

@@ -72,6 +72,21 @@
 </div>
 {% endif %}
 
+<div class="sectit">파일럿 단계별 집계</div>
+<p class="legend" style="margin:0 0 10px">
+  {{ pilot_window.label }}
+  {%- if pilot_days_left is not none %} · {% if pilot_days_left >= 0 %}{{ pilot_days_left }}일 남음{% else %}{{ -pilot_days_left }}일 지남{% endif %}{% endif %}
+</p>
+<table class="matrix">
+  <tr><th>단계</th><th>건수</th></tr>
+  <tr><td style="font-family:inherit">나눔글 접수</td><td>{{ funnel.offers_posted }}</td></tr>
+  <tr><td style="font-family:inherit">└ 노출 승인</td><td>{{ funnel.offers_approved }}</td></tr>
+  <tr><td style="font-family:inherit">└ 노출 거절</td><td>{{ funnel.offers_rejected }}</td></tr>
+  <tr><td style="font-family:inherit">위원 매칭</td><td>{{ funnel.matched }}</td></tr>
+  <tr><td style="font-family:inherit">└ 매칭 취소</td><td>{{ funnel.cancelled }}</td></tr>
+  <tr><td style="font-family:inherit">전달 완료</td><td>{{ funnel.delivered }}</td></tr>
+</table>
+
 <div class="sectit">파일럿 목표 대비</div>
 {% for g in goals %}
 <div class="card" style="cursor:default">
@@ -103,6 +118,18 @@
   </div>
   <button class="btn ghost" type="submit">보관 기간 저장</button>
 </form>
+<form method="post" action="/office/policy/pilot" style="margin-top:14px">
+  <div class="field">
+    <label>파일럿 시작일 (비우면 누적 집계)</label>
+    <input name="start" type="date" value="{{ policy.pilot_start or '' }}">
+  </div>
+  <div class="field">
+    <label>파일럿 기간 (개월)</label>
+    <input name="months" type="number" min="1" max="24" value="{{ policy.pilot_months }}" required>
+  </div>
+  <button class="btn ghost" type="submit">파일럿 기간 저장</button>
+</form>
+
 <p class="legend">
   종결한 날부터 이 기간이 지나면 실명·연락처를 파기합니다. 비식별 케이스 기록과 통계는 남습니다.<br>
   기한이 지난 케이스는 위 경고와 <b>기록 탭</b>에 표시됩니다. 파기는 담당 위원이 직접 누릅니다.
