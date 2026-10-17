@@ -30,6 +30,7 @@ TABS: dict[Role, list[dict[str, str]]] = {
     Role.MEMBER: [
         {"key": "cases", "href": "/member", "icon": "compass", "label": "케이스"},
         {"key": "match", "href": "/member/matches", "icon": "link", "label": "매칭"},
+        {"key": "donors", "href": "/member/donors", "icon": "store", "label": "후원자"},
         {"key": "report", "href": "/member/report", "icon": "chart", "label": "활동기록"},
     ],
     Role.OFFICE: [

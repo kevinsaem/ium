@@ -47,11 +47,6 @@ class Settings:
     identity_key: str = _env("IUM_IDENTITY_KEY", "")
     database_url: str = _env("IUM_DATABASE_URL", "sqlite:///./ium.db")
 
-    # 나눔글을 위원에게 노출하기 전 운영팀이 승인할지 (위원회 결정, 안건 05).
-    # "향후에 좀 번거로우면 승인 단계를 뺄 수도 있지 않을까" — 그래서 설정으로 뺐다.
-    offer_approval: bool = _env("IUM_OFFER_APPROVAL", "on").strip().lower() not in {
-        "off", "false", "0", "no"
-    }
 
     # 파일럿 대상 동
     dong: str = _env("IUM_DONG", "선부3동")

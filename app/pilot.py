@@ -3,13 +3,16 @@
 위원회 결정(2026-09-19, 안건 04):
 
 - 기간은 1개월. 시작일은 앱이 완성된 뒤에 정하므로 운영자가 화면에서 넣는다.
-- 매칭 건수는 한 숫자로 보지 않는다. "제안이 몇 건 있었고 승인된 게 몇 건이고 또 전달까지
-  이루어진 게 몇 건이었는지" 를 모두 본다. 그래서 단계별로 센다.
+- 매칭 건수는 한 숫자로 보지 않는다. 단계별로 센다.
 - 위원 만족도·활동 위원 수는 지표에서 뺀다 ("위원 지표까지 필요 없을 것 같습니다").
 
-안건 05 로 승인의 자리가 나눔글로 옮겨졌으므로, 단계는 이렇게 읽힌다.
+2차 회의(안건 16)에서 목표 숫자를 미리 정하지 않기로 했다. "전달 완료 건을 기준으로
+카운트해 위원들끼리 공유하고 성과 자료로 활용한다" — 그래서 목표 대비 달성률을 보여 주지
+않고 건수만 센다. 10곳·20건 같은 숫자를 걸어 두면 숫자를 맞추는 일이 목적이 된다.
 
-    나눔글 접수 -> 노출 승인 -> 위원 매칭 -> 전달 완료
+나눔글 건건이 심사하는 단계가 폐기됐으므로(안건 10) 단계는 이렇게 읽힌다.
+
+    후원자 승인 -> 나눔글 접수 -> 위원 매칭 -> 전달 완료
 """
 from __future__ import annotations
 
@@ -19,15 +22,8 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Match, MatchStatus, Offer, OfferStatus, Policy, Shop
+from app.models import Match, MatchStatus, Offer, Policy, Role, Shop, User
 from app.timeutil import KST, shift_month, to_local
-
-# 목표값 — 위원회 초안 (인증가게 10곳 · 전달 20건)
-GOALS = [
-    {"key": "certified_shops", "label": "인증 나눔가게", "target": 10, "unit": "곳"},
-    {"key": "delivered", "label": "전달 완료", "target": 20, "unit": "건"},
-]
-
 
 @dataclass
 class Window:
@@ -79,29 +75,23 @@ def window(policy: Policy) -> Window:
 
 
 def funnel(db: Session, win: Window) -> dict[str, int]:
-    """단계별 건수. 한 숫자로 뭉치지 않는 것이 이 안건의 요지다."""
+    """단계별 건수. 목표 대비가 아니라 건수 그대로 본다 (위원회 결정, 안건 16)."""
     offers = list(db.scalars(select(Offer)).all())
     matches = list(db.scalars(select(Match)).all())
+    donors = list(db.scalars(select(User).where(User.role == Role.DONOR)).all())
 
     posted = [o for o in offers if win.contains(o.created_at)]
     matched = [m for m in matches if win.contains(m.created_at)]
     return {
-        # 접수된 나눔글 (거절된 것까지 포함 — 후원자가 손을 든 횟수다)
+        # 승인된 후원자 — 거르는 대상이 물건에서 사람으로 바뀌었다 (안건 10)
+        "donors_approved": len([d for d in donors if win.contains(d.approved_at)]),
+        "donors_waiting": len([d for d in donors if d.approved_at is None]),
         "offers_posted": len(posted),
-        # 그중 운영팀이 노출을 승인한 것
-        "offers_approved": len(
-            [o for o in posted if o.status is not OfferStatus.PENDING
-             and o.status is not OfferStatus.REJECTED]
-        ),
-        "offers_rejected": len([o for o in posted if o.status is OfferStatus.REJECTED]),
         "matched": len([m for m in matched if m.status is not MatchStatus.CANCELLED]),
         "cancelled": len([m for m in matched if m.status is MatchStatus.CANCELLED]),
+        # 위원들이 함께 보는 성과 숫자
         "delivered": len(
             [m for m in matches if m.status is MatchStatus.DELIVERED and win.contains(m.delivered_at)]
         ),
         "certified_shops": len([s for s in db.scalars(select(Shop)).all() if s.is_certified]),
     }
-
-
-def goals(counts: dict[str, int]) -> list[dict[str, object]]:
-    return [{**g, "current": counts[g["key"]]} for g in GOALS]

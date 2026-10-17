@@ -91,7 +91,7 @@ def seed() -> None:
         )
         member1 = User(
             email="member1@ium.test", password_hash=hash_password(PASSWORD),
-            name="이관희 위원", role=Role.MEMBER, appointed_note="2026년 위촉",
+            name="이관희 위원", role=Role.MEMBER, is_manager=True, appointed_note="2026년 위촉",
         )
         member2 = User(
             email="member2@ium.test", password_hash=hash_password(PASSWORD),
@@ -103,7 +103,9 @@ def seed() -> None:
         shops: dict[str, Shop] = {}
         for name, phone, shop_name, category, walk, certified in DONORS:
             donor = User(
-                phone=phone, password_hash=hash_password(DONOR_PIN), name=name, role=Role.DONOR
+                phone=phone, password_hash=hash_password(DONOR_PIN), name=name, role=Role.DONOR,
+                # 시연 데이터는 승인을 마친 상태로 둔다. 승인 대기 화면은 아래에서 한 곳만 남긴다.
+                approved_at=datetime.now(timezone.utc),
             )
             db.add(donor)
             db.flush()
@@ -163,15 +165,14 @@ def seed() -> None:
         # A가정 ← 도시락: 전달 대기 상태로 남겨 둔다.
         matching.propose(db, cases[0], offers["따뜻한 한끼 도시락 5개"], member1, "화요일 오전 수령 예정")
 
-        # 나눔글 하나는 운영팀 승인 대기로 남겨 둔다 — 승인 화면을 바로 볼 수 있게 (안건 05).
-        db.add(
-            Offer(
-                shop_id=shops["한빛철물점"].id, title="방충망 수리 2가구",
-                kind=OfferKind.REPAIR, icon=KIND_ICON.get("repair", "fix"),
-                quantity_note="2가구", delivery=DeliveryMethod.BENEFICIARY_VISIT,
-                status=OfferStatus.PENDING,
-            )
+        # 승인 대기 후원자 한 명을 남겨 둔다 — 매니저 승인 화면을 바로 볼 수 있게 (안건 10).
+        waiting = User(
+            phone="01010000009", password_hash=hash_password(DONOR_PIN),
+            name="신규사장", role=Role.DONOR,
         )
+        db.add(waiting)
+        db.flush()
+        db.add(Shop(owner_id=waiting.id, name="새봄반찬", category="반찬", walk_minutes=5))
         db.commit()
 
         print("시드 완료.")

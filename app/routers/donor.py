@@ -49,8 +49,9 @@ def feed(request: Request, user: User = Depends(donor_dep), db: Session = Depend
     offers = list(
         db.scalars(
             select(Offer)
-            .join(Shop)
-            .where(Offer.status != OfferStatus.PENDING, Offer.status != OfferStatus.REJECTED)
+            .join(Shop, Offer.shop_id == Shop.id)
+            .join(User, Shop.owner_id == User.id)
+            .where(User.approved_at.is_not(None))
             .order_by(Offer.status, Offer.created_at.desc())
         ).all()
     )
@@ -142,14 +143,14 @@ def create_offer(
             quantity_note=quantity_note.strip() or None,
             delivery=parse_enum(DeliveryMethod, delivery, "전달 방법"),
             detail=detail.strip() or None,
-            status=matching.initial_offer_status(),
         )
     )
     db.commit()
-    if settings.offer_approval:
-        flash(request, "나눔글을 접수했습니다. 운영팀 확인 후 위원에게 전달됩니다.")
-    else:
+    if user.is_approved:
         flash(request, "나눔글이 등록되었습니다. 위원이 필요한 곳에 연결해 드립니다.")
+    else:
+        # 승인 전에도 올려 둘 수 있게 한다. 승인되는 순간 그동안 올린 것이 함께 보인다.
+        flash(request, "나눔글을 등록했습니다. 협의체 승인이 끝나면 위원에게 전달됩니다.")
     return RedirectResponse("/donor", status_code=303)
 
 
@@ -181,7 +182,7 @@ def mine(request: Request, user: User = Depends(donor_dep), db: Session = Depend
 
     # 마감을 되돌릴 수 있는 건 전달까지 가지 않은 나눔글뿐이다 (전달 기록은 실적의 근거).
     reopenable = {
-        o.id: o.status in (OfferStatus.CLOSED, OfferStatus.REJECTED)
+        o.id: o.status is OfferStatus.CLOSED
         and not any(m.status is MatchStatus.DELIVERED for m in o.matches)
         for o in offers
     }
@@ -256,17 +257,8 @@ def reopen_offer(
     if any(m.status is MatchStatus.DELIVERED for m in offer.matches):
         flash(request, "전달이 완료된 나눔글입니다. 새 나눔글로 올려주세요.")
         return RedirectResponse("/donor/mine", status_code=303)
-    if offer.status not in (OfferStatus.CLOSED, OfferStatus.REJECTED):
+    if offer.status is not OfferStatus.CLOSED:
         flash(request, "이미 열려 있는 나눔글입니다.")
-        return RedirectResponse("/donor/mine", status_code=303)
-
-    # 거절당한 글은 고쳐서 다시 올리는 것이므로 심사를 다시 받는다.
-    # 한 번 승인받고 후원자가 내렸던 글은 이미 걸러진 물건이라 바로 돌아간다.
-    if offer.status is OfferStatus.REJECTED:
-        offer.status = matching.initial_offer_status()
-        offer.review_note = None
-        db.commit()
-        flash(request, f"'{offer.title}' 을(를) 다시 접수했습니다. 운영팀 확인을 기다립니다.")
         return RedirectResponse("/donor/mine", status_code=303)
 
     offer.status = OfferStatus.OPEN

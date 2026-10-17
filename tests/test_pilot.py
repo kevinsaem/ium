@@ -1,8 +1,10 @@
 """파일럿 지표 테스트.
 
-위원회 결정(2026-09-19, 안건 04): 기간은 1개월이고 시작일은 앱이 완성된 뒤에 정한다.
-매칭 건수를 한 숫자로 보지 않고 "제안이 몇 건, 승인된 게 몇 건, 전달까지 몇 건" 을 모두
-본다. 위원 만족도·활동 위원 수는 지표에서 뺀다.
+위원회 결정(안건 04): 기간은 1개월이고 시작일은 앱이 완성된 뒤에 정한다. 매칭 건수를 한
+숫자로 보지 않고 단계별로 센다. 위원 만족도·활동 위원 수는 지표에서 뺀다.
+
+2차 결정(안건 16): 목표 숫자를 미리 정하지 않고, 전달 완료 건수를 위원들이 함께 보는
+성과 자료로 쓴다.
 """
 from __future__ import annotations
 
@@ -20,7 +22,7 @@ def _login(client, email: str) -> None:
     client.post("/login", data={"email": email, "password": "ium1234"}, follow_redirects=False)
 
 
-def _offer(db, *, when: datetime | None = None, status=OfferStatus.PENDING) -> Offer:
+def _offer(db, *, when: datetime | None = None, status=OfferStatus.OPEN) -> Offer:
     shop = db.scalar(select(Shop))
     kind = db.scalar(select(Offer)).kind
     offer = Offer(shop_id=shop.id, title="집계용 나눔", kind=kind, status=status)
@@ -122,25 +124,26 @@ def test_only_office_can_set_the_pilot_period(db, seeded, client):
 
 def test_funnel_separates_every_stage(db, seeded):
     """한 숫자로 뭉치지 않는 것이 이 안건의 요지다."""
-    pending = _offer(db)
-    approved = _offer(db)
-    rejected = _offer(db)
-    matching.approve_offer(db, approved, seeded["office"])
-    matching.reject_offer(db, rejected, seeded["office"], "유통기한")
+    from app import accounts
+
+    waiting, _ = accounts.register_donor(
+        db, seeded["member1"], name="대기사장", phone="010-7777-0002"
+    )
+    _offer(db)
 
     case = db.scalar(select(Case).where(Case.status == CaseStatus.OPEN))
-    seed_offer = db.scalar(select(Offer).where(Offer.status == OfferStatus.OPEN, Offer.id != approved.id))
-    match = matching.propose(db, case, seed_offer, seeded["member1"])
+    offer = db.scalar(select(Offer).where(Offer.status == OfferStatus.OPEN))
+    match = matching.propose(db, case, offer, seeded["member1"])
     matching.mark_delivered(db, match, seeded["member1"])
 
     counts = pilot.funnel(db, pilot.window(retention.current(db)))
 
-    assert counts["offers_posted"] >= 3
-    assert counts["offers_rejected"] == 1
+    assert counts["donors_waiting"] == 1  # 방금 등록한 사람
+    assert counts["offers_posted"] >= 1
     assert counts["matched"] == 1
     assert counts["delivered"] == 1
     assert counts["cancelled"] == 0
-    assert pending.status is OfferStatus.PENDING  # 승인 수에 들어가지 않는다
+    assert waiting.approved_at is None
 
 
 def test_cancelled_matches_are_counted_separately(db, seeded):
@@ -173,23 +176,23 @@ def test_counting_is_limited_to_the_pilot_window(db, seeded):
     assert before.id != inside.id
 
 
-def test_goals_are_shops_and_deliveries_only(db, seeded):
-    """위원 지표는 뺐다 — "위원 지표까지 필요 없을 것 같습니다"."""
-    keys = {g["key"] for g in pilot.GOALS}
-    assert keys == {"certified_shops", "delivered"}
-    assert all(g["target"] for g in pilot.GOALS)
+def test_no_targets_are_set_in_advance(db):
+    """위원회 결정(안건 16): 목표 숫자를 미리 정하지 않는다.
+
+    숫자를 걸어 두면 숫자를 맞추는 일이 목적이 된다. 전달 완료 건수만 세어 공유한다.
+    """
+    assert not hasattr(pilot, "GOALS")
+    assert not hasattr(pilot, "goals")
 
 
-def test_goal_progress_uses_the_funnel_numbers(db, seeded):
+def test_delivered_count_is_the_shared_number(db, seeded):
     case = db.scalar(select(Case).where(Case.status == CaseStatus.OPEN))
     offer = db.scalar(select(Offer).where(Offer.status == OfferStatus.OPEN))
     match = matching.propose(db, case, offer, seeded["member1"])
     matching.mark_delivered(db, match, seeded["member1"])
 
     counts = pilot.funnel(db, pilot.window(retention.current(db)))
-    goals = {g["key"]: g for g in pilot.goals(counts)}
-    assert goals["delivered"]["current"] == 1
-    assert goals["delivered"]["target"] == 20
+    assert counts["delivered"] == 1
 
 
 # --- 화면 ------------------------------------------------------------------
@@ -199,14 +202,15 @@ def test_dashboard_shows_every_stage(db, seeded, client):
     _login(client, "office@ium.test")
     html = client.get("/office").text
 
-    for label in ("나눔글 접수", "노출 승인", "노출 거절", "위원 매칭", "매칭 취소", "전달 완료"):
+    for label in ("후원자 승인", "승인 대기", "나눔글 접수", "위원 매칭", "매칭 취소", "전달 완료"):
         assert label in html, label
 
 
-def test_dashboard_no_longer_shows_the_member_goal(db, seeded, client):
+def test_dashboard_shows_no_target_numbers(db, seeded, client):
     _login(client, "office@ium.test")
     html = client.get("/office").text
-    assert "활동 위원" not in html.split("파일럿 목표 대비")[1]
+    assert "파일럿 목표 대비" not in html
+    assert "목표 숫자는 미리 정하지 않습니다" in html
 
 
 def test_dashboard_shows_the_period_and_days_left(db, seeded, client):

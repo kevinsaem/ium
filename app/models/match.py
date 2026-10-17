@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 class Match(Base, TimestampMixin):
     """'필요'(Case) ↔ '나눔'(Offer) 연결. 이음의 핵심 트랜잭션.
 
-    승인 단계는 없다. 운영팀이 나눔글을 노출할지 이미 결정했고(OfferStatus.PENDING ->
-    OPEN), 그 뒤 어느 가정에 보낼지는 담당 위원의 판단이다 (위원회 결정, 안건 05).
+    승인 단계는 없다. 매니저가 그 후원자를 이미 승인했고, 어느 가정에 보낼지는 그 가정을
+    아는 담당 위원의 판단이다 (위원회 결정, 안건 10).
     """
 
     __tablename__ = "match"

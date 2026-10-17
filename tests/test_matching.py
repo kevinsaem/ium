@@ -1,16 +1,17 @@
-"""나눔글 노출 심사와 매칭 테스트.
+"""후원자 승인과 매칭 테스트.
 
-위원회 결정(2026-09-19, 안건 05)으로 승인의 자리가 매칭에서 나눔글로 옮겨졌다.
-후원자가 올린 나눔글은 운영팀이 노출을 승인해야 위원에게 보이고, 그 뒤 어느 가정에
-보낼지는 담당 위원이 혼자 정한다. 두 단계가 각자 자리를 지키는지 여기서 고정한다.
+승인의 자리가 두 번 옮겨졌다 — 1차(안건 05)는 나눔글 노출 승인, 2차(안건 10)는 그 방식을
+폐기하고 후원자 자체를 검증한다. 거르는 대상이 물건에서 사람으로 바뀌었다.
+
+승인된 후원자의 나눔만 위원 후보에 오르는지, 그리고 그 경계를 우회할 길이 없는지 고정한다.
 """
 from __future__ import annotations
 
 import pytest
 from sqlalchemy import select
 
-from app import matching
-from app.models import Case, CaseStatus, MatchStatus, Offer, OfferStatus, Shop
+from app import accounts, matching
+from app.models import Case, CaseStatus, MatchStatus, Offer, OfferKind, OfferStatus, Shop
 
 
 def _fresh_pair(db):
@@ -19,73 +20,89 @@ def _fresh_pair(db):
     return case, offer
 
 
-def _new_offer(db, seeded, **kwargs) -> Offer:
-    """후원자가 막 올린 나눔글 — 기본값(승인 대기)을 그대로 쓴다."""
-    shop = db.scalar(select(Shop))
-    offer = Offer(shop_id=shop.id, title="새 나눔", kind=next(iter(db.scalars(select(Offer)))).kind, **kwargs)
+# --- 후원자 승인 (매니저) -------------------------------------------------
+
+
+def test_a_new_donor_waits_for_approval(db, seeded):
+    """거르는 대상은 물건이 아니라 사람이다 (위원회 결정, 안건 10)."""
+    donor, _ = accounts.register_donor(
+        db, seeded["member1"], name="새사장", phone="010-7777-0001", shop_name="새가게"
+    )
+    assert donor.approved_at is None
+    assert not donor.is_approved
+
+
+def test_approval_puts_the_donors_offers_in_front_of_members(db, seeded):
+    donor, _ = accounts.register_donor(
+        db, seeded["member1"], name="새사장", phone="010-7777-0001", shop_name="새가게"
+    )
+    shop = db.scalar(select(Shop).where(Shop.owner_id == donor.id))
+    offer = Offer(shop_id=shop.id, title="라면 20박스", kind=OfferKind.GOODS)
     db.add(offer)
     db.commit()
-    return offer
+
+    assert offer.id not in [o.id for o in matching.open_offers_for_members(db)]
+
+    accounts.approve_donor(db, seeded["member1"], donor)
+    assert offer.id in [o.id for o in matching.open_offers_for_members(db)]
 
 
-# --- 나눔글 노출 심사 (운영팀) ---------------------------------------------
+def test_members_cannot_match_an_unapproved_donors_offer(db, seeded):
+    """후보 목록에서 빠지는 것만으로는 부족하다 — 주소를 직접 넣는 길이 있다."""
+    donor, _ = accounts.register_donor(
+        db, seeded["member1"], name="새사장", phone="010-7777-0001", shop_name="새가게"
+    )
+    shop = db.scalar(select(Shop).where(Shop.owner_id == donor.id))
+    offer = Offer(shop_id=shop.id, title="라면 20박스", kind=OfferKind.GOODS)
+    db.add(offer)
+    db.commit()
 
-
-def test_a_new_offer_waits_for_the_office(db, seeded):
-    """후원자가 올린 나눔은 바로 위원에게 가지 않는다. 협의체 이름으로 나가는 물건이라서다."""
-    offer = _new_offer(db, seeded)
-    assert offer.status is OfferStatus.PENDING
-
-
-def test_approval_puts_the_offer_in_front_of_members(db, seeded):
-    offer = _new_offer(db, seeded)
-    matching.approve_offer(db, offer, seeded["office"], "현장 확인함")
-
-    assert offer.status is OfferStatus.OPEN
-    assert offer.reviewed_by_id == seeded["office"].id
-    assert offer.reviewed_at is not None
-    assert offer.review_note == "현장 확인함"
-
-
-def test_rejection_keeps_the_reason_for_the_donor(db, seeded):
-    """사유 없이 사라지면 후원자는 앱이 고장 난 줄 알거나 선의가 거절당했다고만 받아들인다."""
-    offer = _new_offer(db, seeded)
-    matching.reject_offer(db, offer, seeded["office"], "유통기한이 지난 품목입니다")
-
-    assert offer.status is OfferStatus.REJECTED
-    assert offer.review_note == "유통기한이 지난 품목입니다"
-
-
-def test_rejection_requires_a_reason(db, seeded):
-    offer = _new_offer(db, seeded)
-    for blank in ("", "   "):
-        with pytest.raises(Exception) as exc:
-            matching.reject_offer(db, offer, seeded["office"], blank)
-        assert "거절 사유" in str(exc.value)
-    assert offer.status is OfferStatus.PENDING
-
-
-def test_only_pending_offers_can_be_reviewed(db, seeded):
-    _, approved = _fresh_pair(db)
-    for action in (matching.approve_offer, matching.reject_offer):
-        with pytest.raises(Exception) as exc:
-            action(db, approved, seeded["office"], "사유")
-        assert "승인 대기 중인 나눔글이 아닙니다" in str(exc.value)
-
-
-def test_members_cannot_match_an_unapproved_offer(db, seeded):
-    """심사를 건너뛰고 매칭되는 길이 있으면 승인 단계가 있으나 마나다."""
-    case, _ = _fresh_pair(db)
-    pending = _new_offer(db, seeded)
-
+    case = db.scalar(select(Case).where(Case.status == CaseStatus.OPEN))
     with pytest.raises(Exception) as exc:
-        matching.propose(db, case, pending, seeded["member1"])
-    assert "운영팀 승인을 기다리는" in str(exc.value)
+        matching.propose(db, case, offer, seeded["member1"])
+    assert "승인되지 않은 후원자" in str(exc.value)
 
 
-def test_approval_can_be_switched_off(db, seeded, no_offer_approval):
-    """'향후에 번거로우면 승인 단계를 뺄 수도 있지 않을까' — 설정으로 열어 두었다."""
-    assert matching.initial_offer_status() is OfferStatus.OPEN
+def test_only_a_manager_approves(db, seeded):
+    donor, _ = accounts.register_donor(
+        db, seeded["member1"], name="새사장", phone="010-7777-0001"
+    )
+    with pytest.raises(accounts.AccountError) as exc:
+        accounts.approve_donor(db, seeded["member2"], donor)  # 매니저 아님
+    assert "매니저" in str(exc.value)
+    assert donor.approved_at is None
+
+
+def test_approval_records_who_approved(db, seeded):
+    donor, _ = accounts.register_donor(
+        db, seeded["member1"], name="새사장", phone="010-7777-0001"
+    )
+    accounts.approve_donor(db, seeded["member1"], donor)
+    assert donor.approved_by_id == seeded["member1"].id
+
+
+def test_approving_twice_is_refused(db, seeded):
+    donor, _ = accounts.register_donor(
+        db, seeded["member1"], name="새사장", phone="010-7777-0001"
+    )
+    accounts.approve_donor(db, seeded["member1"], donor)
+    with pytest.raises(accounts.AccountError) as exc:
+        accounts.approve_donor(db, seeded["member1"], donor)
+    assert "이미 승인" in str(exc.value)
+
+
+def test_unapproving_needs_a_reason_and_keeps_live_matches(db, seeded):
+    """되돌리면 후보에서 빠지지만, 이미 약속된 매칭은 그대로 둔다."""
+    case, offer = _fresh_pair(db)
+    match = matching.propose(db, case, offer, seeded["member1"])
+    owner = offer.shop.owner
+
+    with pytest.raises(accounts.AccountError):
+        accounts.unapprove_donor(db, seeded["member1"], owner, "  ")
+
+    accounts.unapprove_donor(db, seeded["member1"], owner, "폐업")
+    assert owner.approved_at is None
+    assert match.status is MatchStatus.APPROVED  # 진행 중인 매칭은 살아 있다
 
 
 # --- 매칭 (위원) -----------------------------------------------------------

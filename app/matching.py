@@ -1,77 +1,27 @@
-"""나눔글 노출 심사와 매칭.
+"""매칭.
 
-위원회 결정(2026-09-19, 안건 05)으로 승인의 자리가 바뀌었다.
+위원회 결정으로 승인의 자리가 두 번 옮겨졌다.
 
-    예전: 위원이 케이스↔나눔글을 제안 → 위원 N명이 승인 → 확정
-    지금: 후원자가 나눔글을 올림 → 운영팀이 노출 승인 → 위원에게 보임 → 위원이 매칭·전달
+    1차(안건 05): 위원이 케이스↔나눔글을 제안 → 위원 N명 승인 → 확정
+    2차(안건 10): 나눔글 건건이 심사하는 방식을 폐기 → 후원자 자체를 검증
 
-승인을 매칭이 아니라 나눔글에 두는 이유는, 협의체 이름으로 나가는 물건을 먼저 거르자는
-것이지 어느 가정에 보낼지를 여럿이 정하자는 게 아니기 때문이다. 어느 가정에 보낼지는
-그 가정을 아는 담당 위원의 판단으로 남는다.
+지금은 이렇게 돈다.
 
-노출 승인 자체도 번거로워지면 뺄 수 있게 settings.offer_approval 로 열어 두었다.
+    위원이 후원자를 발굴해 계정을 만든다 → 매니저가 후원자를 승인한다
+    → 그 후원자의 나눔글은 바로 위원의 매칭 후보에 오른다 → 위원이 매칭·전달한다
+
+거르는 대상이 물건에서 사람으로 바뀐 것이다. 물건을 건건이 보는 일은 "번거롭다"는 것이
+폐기 이유였고, 후원자를 한 번 보면 그 사람이 내놓는 것 전체가 함께 걸러진다.
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.models import Case, CaseStatus, Match, MatchStatus, Offer, OfferStatus, User
-
-
-# --- 나눔글 노출 심사 (운영팀) ---------------------------------------------
-
-
-def initial_offer_status() -> OfferStatus:
-    """후원자가 막 올린 나눔글의 상태."""
-    return OfferStatus.PENDING if settings.offer_approval else OfferStatus.OPEN
-
-
-def approval_mode_label() -> str:
-    if settings.offer_approval:
-        return "운영팀 승인 후 위원에게 노출"
-    return "승인 없이 바로 노출"
-
-
-def _review(
-    db: Session, offer: Offer, manager: User, new_status: OfferStatus, note: str | None
-) -> Offer:
-    offer.status = new_status
-    offer.reviewed_by_id = manager.id
-    offer.reviewed_at = datetime.now(timezone.utc)
-    offer.review_note = note
-    db.commit()
-    db.refresh(offer)
-    return offer
-
-
-def approve_offer(db: Session, offer: Offer, manager: User, note: str | None = None) -> Offer:
-    """노출 승인 — 이때부터 위원의 매칭 후보에 오른다."""
-    if offer.status is not OfferStatus.PENDING:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail=f"승인 대기 중인 나눔글이 아닙니다. (현재: {offer.status.label})",
-        )
-    return _review(db, offer, manager, OfferStatus.OPEN, note)
-
-
-def reject_offer(db: Session, offer: Offer, manager: User, note: str) -> Offer:
-    """노출 거절.
-
-    사유를 받는 이유는 후원자에게 그대로 보이기 때문이다. 이유 없이 사라지면 후원자는
-    앱이 고장 난 줄 알거나, 자기 선의가 거절당했다고만 받아들인다.
-    """
-    if offer.status is not OfferStatus.PENDING:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail=f"승인 대기 중인 나눔글이 아닙니다. (현재: {offer.status.label})",
-        )
-    if not note or not note.strip():
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="거절 사유를 입력해 주세요.")
-    return _review(db, offer, manager, OfferStatus.REJECTED, note.strip())
 
 
 # --- 매칭 (위원) -----------------------------------------------------------
@@ -79,11 +29,13 @@ def reject_offer(db: Session, offer: Offer, manager: User, note: str) -> Offer:
 
 def propose(db: Session, case: Case, offer: Offer, member: User, note: str | None = None) -> Match:
     """케이스와 나눔글을 잇는다. 별도 승인 단계 없이 바로 확정된다."""
+    if not offer.shop.owner.is_approved:
+        # 미승인 후원자의 나눔글은 후보 목록에 오르지 않지만, 주소를 직접 넣는 길이 있어
+        # 여기서도 막는다. 승인 단계가 있으나 마나가 되면 안 된다.
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="아직 승인되지 않은 후원자의 나눔입니다."
+        )
     if offer.status is not OfferStatus.OPEN:
-        if offer.status is OfferStatus.PENDING:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST, detail="운영팀 승인을 기다리는 나눔입니다."
-            )
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="이미 매칭 중이거나 종료된 나눔입니다.")
     if case.status in (CaseStatus.RESOLVED, CaseStatus.CLOSED):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="종결된 케이스입니다.")
@@ -120,11 +72,7 @@ def mark_delivered(db: Session, match: Match, actor: User, note: str | None = No
 
 
 def cancel(db: Session, match: Match, actor: User, reason: str | None = None) -> Match:
-    """매칭 취소 — 나눔글은 다시 위원들의 후보로 돌아간다.
-
-    노출 승인은 이미 끝난 건이라 다시 받지 않는다. 운영팀이 걸러야 할 것은 물건이지
-    어느 가정에 갔다가 무산됐는지가 아니다.
-    """
+    """매칭 취소 — 나눔글은 다시 위원들의 후보로 돌아간다."""
     if match.status is MatchStatus.DELIVERED:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="이미 전달 완료된 매칭입니다.")
     match.status = MatchStatus.CANCELLED
@@ -135,3 +83,21 @@ def cancel(db: Session, match: Match, actor: User, reason: str | None = None) ->
     db.commit()
     db.refresh(match)
     return match
+
+
+def open_offers_for_members(db: Session):
+    """위원의 매칭 후보 — 승인된 후원자의 '나눔 가능' 글만.
+
+    이 조건을 화면마다 따로 쓰면 한 곳만 고쳐지고 다른 곳으로 미승인 후원자의 글이 샌다.
+    """
+    from app.models import Shop
+
+    return list(
+        db.scalars(
+            select(Offer)
+            .join(Shop, Offer.shop_id == Shop.id)
+            .join(User, Shop.owner_id == User.id)
+            .where(Offer.status == OfferStatus.OPEN, User.approved_at.is_not(None))
+            .order_by(Offer.created_at.desc())
+        ).all()
+    )

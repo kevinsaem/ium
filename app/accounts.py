@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import permissions
 from app.models import AccountEvent, Role, User
 from app.security import (
     generate_pin,
@@ -42,6 +43,8 @@ ACTION_LABELS = {
     "reactivate": "위촉 복구",
     "grant_manager": "매니저 권한 부여",
     "revoke_manager": "매니저 권한 해제",
+    "approve_donor": "후원자 승인",
+    "unapprove_donor": "후원자 승인 취소",
 }
 
 
@@ -318,3 +321,43 @@ def unlock(db: Session, user: User, commit: bool = True) -> None:
     user.locked_until = None
     if commit:
         db.commit()
+
+
+def approve_donor(db: Session, manager: User, donor: User) -> User:
+    """후원자를 승인한다 — 매니저만 (위원회 결정, 안건 10·14).
+
+    거르는 대상은 물건이 아니라 사람이다. 한 번 승인하면 그 후원자가 올리는 나눔글 전체가
+    위원의 매칭 후보에 오른다. 그래서 승인은 현장을 본 사람의 판단이어야 한다.
+    """
+    if not permissions.is_manager(manager):
+        raise AccountError("후원자 승인은 매니저 권한이 있는 위원만 할 수 있습니다.")
+    if donor.role is not Role.DONOR:
+        raise AccountError("후원자 계정만 승인합니다.")
+    if donor.approved_at is not None:
+        raise AccountError(f"{donor.name}님은 이미 승인되어 있습니다.")
+
+    donor.approved_at = datetime.now(timezone.utc)
+    donor.approved_by_id = manager.id
+    log_event(db, donor, "approve_donor", manager)
+    db.commit()
+    return donor
+
+
+def unapprove_donor(db: Session, manager: User, donor: User, reason: str) -> User:
+    """승인을 되돌린다.
+
+    가게가 문을 닫거나 문제가 생겼을 때 쓴다. 되돌리면 그 후원자의 나눔글은 위원의 후보에서
+    빠지지만, 이미 매칭된 건은 그대로 둔다 — 받는 가정에게는 이미 약속된 것이다.
+    """
+    if not permissions.is_manager(manager):
+        raise AccountError("후원자 승인 취소는 매니저 권한이 있는 위원만 할 수 있습니다.")
+    if donor.role is not Role.DONOR:
+        raise AccountError("후원자 계정만 다룹니다.")
+    if not reason.strip():
+        raise AccountError("승인을 취소하는 이유를 적어 주세요.")
+
+    donor.approved_at = None
+    donor.approved_by_id = None
+    log_event(db, donor, "unapprove_donor", manager, reason.strip())
+    db.commit()
+    return donor

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="banner">
+  <div class="seal ic-svg">{{ icon('store') }}</div>
+  <div>
+    <b>후원자는 사람을 보고 승인합니다</b>
+    <p>나눔글을 건건이 심사하지 않습니다. 위원이 가게를 찾아 발굴하고, 매니저가 그 후원자를 승인하면 그 가게의 나눔이 매칭 후보에 오릅니다.</p>
+  </div>
+</div>
+
+{% if waiting %}
+<div class="sectit">승인 대기 · {{ waiting | length }}곳</div>
+{% for d in waiting %}
+<div class="card" style="cursor:default">
+  <div class="row">
+    <div class="thumb ic-svg">{{ icon('store') }}</div>
+    <div class="meta">
+      <h3>{{ d.shop.name if d.shop else d.name }}</h3>
+      <div class="sub">{{ d.name }} · {{ d.phone or '번호 없음' }}</div>
+      {% if d.shop and d.shop.category %}<div class="sub">{{ d.shop.category }}</div>{% endif %}
+    </div>
+  </div>
+  {% if is_manager %}
+  <form method="post" action="/member/donors/{{ d.id }}/approve">
+    <button class="btn sm" type="submit" style="width:100%">승인</button>
+  </form>
+  {% else %}
+  <p class="legend">매니저가 승인합니다.</p>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+<div class="sectit">승인된 후원자</div>
+{% for d in donors if d.approved_at %}
+<div class="card" style="cursor:default">
+  <div class="row">
+    <div class="thumb ic-svg">{{ icon('store') }}</div>
+    <div class="meta">
+      <h3>{{ d.shop.name if d.shop else d.name }}</h3>
+      <div class="sub">{{ d.name }} · {{ d.phone or '번호 없음' }}</div>
+      <div class="foot">
+        <span class="tag line">승인 {{ d.approved_at | local('%Y-%m-%d') }}</span>
+        {% if d.approved_by %}<span class="tag soft">{{ d.approved_by.name }}</span>{% endif %}
+        {% if d.shop and d.shop.is_certified %}
+        <span class="verify"><span class="ic-svg">{{ icon('check') }}</span>인증 나눔가게</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% if is_manager %}
+  <form method="post" action="/member/donors/{{ d.id }}/unapprove"
+        onsubmit="return confirm('{{ d.name }}님의 승인을 취소합니다. 진행 중인 매칭은 그대로 둡니다. 계속할까요?')">
+    <div class="field" style="margin:9px 0 0">
+      <input name="reason" placeholder="취소 사유 (예: 폐업)" required>
+    </div>
+    <button class="btn ghost sm" type="submit">승인 취소</button>
+  </form>
+  {% endif %}
+</div>
+{% else %}
+<div class="empty" style="padding:22px">아직 승인된 후원자가 없습니다.</div>
+{% endfor %}
+
+<div class="sectit">후원자 발굴 등록</div>
+<form method="post" action="/member/donors">
+  <div class="field"><label>이름</label><input name="name" placeholder="예) 김행복" required></div>
+  <div class="field">
+    <label>휴대폰 번호 (로그인 아이디)</label>
+    <input type="tel" name="phone" inputmode="numeric" placeholder="010-1234-5678" required>
+  </div>
+  <div class="field"><label>가게 이름 (선택)</label><input name="shop_name" placeholder="예) 행복미용실"></div>
+  <button class="btn" type="submit">등록하고 숫자 4자리 받기</button>
+</form>
+<p class="legend">
+  등록하면 숫자 4자리가 화면에 한 번만 보입니다. 후원자께 전해 주세요.<br>
+  등록은 위원 누구나 할 수 있고, <b>승인은 매니저가</b> 합니다.
+</p>
+{% endblock %}

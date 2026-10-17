@@ -36,10 +36,10 @@ def test_manager_is_not_a_fourth_role():
     assert {r.value for r in Role} == {"donor", "member", "office"}
 
 
-def test_members_start_without_manager_authority(db, seeded):
-    for key in ("member1", "member2"):
-        assert seeded[key].is_manager is False
-        assert not is_manager(seeded[key])
+def test_the_seeded_manager_is_one_member_not_all(db, seeded):
+    """매니저는 위원 중 '한 명'이다. 모든 위원이 가지면 권한을 나눈 의미가 없다."""
+    assert is_manager(seeded["member1"])        # 시드에서 지정한 매니저
+    assert not is_manager(seeded["member2"])    # 같은 위원이지만 매니저는 아니다
 
 
 def test_only_a_member_can_be_a_manager(db, seeded):
@@ -53,8 +53,6 @@ def test_only_a_member_can_be_a_manager(db, seeded):
 def test_an_unappointed_member_loses_manager_authority(db, seeded):
     """위촉이 해제되면 매니저 권한도 함께 멈춘다."""
     member = seeded["member1"]
-    member.is_manager = True
-    db.commit()
     assert is_manager(member)
 
     member.is_active = False
@@ -64,7 +62,7 @@ def test_an_unappointed_member_loses_manager_authority(db, seeded):
 
 @pytest.mark.parametrize("resource", sorted(MANAGER_RESOURCES))
 def test_manager_resources_need_the_flag(db, seeded, resource):
-    member = seeded["member1"]
+    member = seeded["member2"]  # 매니저가 아닌 위원
     assert not manager_can(member, resource)
 
     member.is_manager = True
@@ -73,17 +71,14 @@ def test_manager_resources_need_the_flag(db, seeded, resource):
 
 
 def test_unknown_resource_is_refused_even_for_a_manager(db, seeded):
-    member = seeded["member1"]
-    member.is_manager = True
-    db.commit()
-    assert not manager_can(member, "아무거나")
+    assert not manager_can(seeded["member1"], "아무거나")
 
 
 # --- 지정과 해제 -------------------------------------------------------------
 
 
 def test_office_grants_and_revokes_manager_authority(db, seeded, client):
-    member = seeded["member1"]
+    member = seeded["member2"]
     _login(client, "office@ium.test")
 
     body = _grant(client, member.id).text
@@ -99,7 +94,7 @@ def test_office_grants_and_revokes_manager_authority(db, seeded, client):
 
 def test_granting_is_recorded_as_a_meeting_decision(db, seeded, client):
     """매니저가 바뀐 것은 정례회의 결정이다. 조용히 바뀌면 안 된다."""
-    member = seeded["member1"]
+    member = seeded["member2"]
     _login(client, "office@ium.test")
     _grant(client, member.id)
 
@@ -115,11 +110,9 @@ def test_granting_is_recorded_as_a_meeting_decision(db, seeded, client):
 
 def test_a_manager_cannot_hand_the_role_to_someone_else(db, seeded, client):
     """매니저 지정은 운영자가 정례회의 결정을 반영하는 경로뿐이다."""
-    manager, other = seeded["member1"], seeded["member2"]
-    manager.is_manager = True
-    db.commit()
+    other = seeded["member2"]
 
-    _login(client, "member1@ium.test")
+    _login(client, "member1@ium.test")  # 매니저 본인
     res = client.post(
         f"/office/members/{other.id}/manager", data={"grant": "1"}, follow_redirects=False
     )
@@ -138,11 +131,9 @@ def test_granting_to_a_non_member_is_refused(db, seeded, client):
 
 def test_members_screen_shows_who_the_manager_is(db, seeded, client):
     _login(client, "office@ium.test")
-    assert "매니저 권한 부여" in client.get("/office/members").text
-
-    _grant(client, seeded["member1"].id)
     body = client.get("/office/members").text
-    assert "매니저 권한 해제" in body
+    assert "매니저 권한 해제" in body   # 시드 매니저(member1) 쪽
+    assert "매니저 권한 부여" in body   # 매니저가 아닌 위원 쪽
 
 
 def test_permission_matrix_lists_the_manager_duties(db, seeded, client):

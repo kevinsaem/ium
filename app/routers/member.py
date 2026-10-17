@@ -5,12 +5,13 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app import accounts, identity_service, matching, retention
 from app.db import get_db
-from app.deps import require_role
+from app.deps import require_manager, require_role
 from app.forms import HOUSEHOLD_SIZE, parse_optional_int
+from app import permissions
 from app.models import (
     Case,
     CaseStatus,
@@ -30,6 +31,7 @@ from app.timeutil import current_month
 
 router = APIRouter(prefix="/member", dependencies=[Depends(require_role(Role.MEMBER))])
 member_dep = require_role(Role.MEMBER)
+manager_dep = require_manager
 
 
 def _own_case(db: Session, case_id: int, user: User) -> Case:
@@ -111,9 +113,7 @@ def _case_detail(
     identity 는 열람 요청(POST reveal)이 방금 복호화한 값일 때만 채워진다. 저장하지 않고
     이 응답 하나에만 실어 보낸다 — 세션에 담으면 쿠키를 타고 브라우저에 남는다.
     """
-    open_offers = list(
-        db.scalars(select(Offer).join(Shop).where(Offer.status == OfferStatus.OPEN)).all()
-    )
+    open_offers = matching.open_offers_for_members(db)
     logs = list(
         db.scalars(
             select(IdentityAccessLog)
@@ -133,7 +133,6 @@ def _case_detail(
         identity=identity,
         access_logs=logs,
         open_offers=open_offers,
-        approval_mode_label=matching.approval_mode_label(),
         retention=retention.status_for(case, months),
         retention_months=months,
     )
@@ -319,7 +318,7 @@ def match_board(request: Request, user: User = Depends(member_dep), db: Session 
         cancelled=[m for m in all_matches if m.status is MatchStatus.CANCELLED],
         # 전달·취소 버튼은 담당 위원에게만 보인다 (라우트에서도 다시 막는다).
         my_cases={m.id for m in all_matches if m.case.member_id == user.id},
-        approval_mode_label=matching.approval_mode_label(),
+        delivered_total=len([m for m in all_matches if m.status is MatchStatus.DELIVERED]),
     )
 
 
@@ -372,6 +371,74 @@ def cancel_match(
     return RedirectResponse("/member/matches", status_code=303)
 
 
+@router.get("/donors")
+def donors(request: Request, user: User = Depends(member_dep), db: Session = Depends(get_db)):
+    """후원자 목록 — 위원이 발굴해 등록하고, 매니저가 승인한다 (위원회 결정, 안건 10).
+
+    승인 버튼은 매니저에게만 보인다. 라우트에서도 다시 막는다.
+    """
+    rows = list(
+        db.scalars(
+            select(User)
+            .options(selectinload(User.shop), selectinload(User.approved_by))
+            .where(User.role == Role.DONOR)
+            .order_by(User.approved_at.is_not(None), User.name)
+        ).all()
+    )
+    return render(
+        request,
+        "member/donors.html",
+        user,
+        "donors",
+        donors=rows,
+        waiting=[d for d in rows if d.approved_at is None],
+        is_manager=permissions.is_manager(user),
+    )
+
+
+@router.post("/donors/{donor_id}/approve")
+def approve_donor_account(
+    donor_id: int,
+    request: Request,
+    user: User = Depends(manager_dep),
+    db: Session = Depends(get_db),
+):
+    """후원자 승인 — 매니저만."""
+    donor = db.get(User, donor_id)
+    if donor is None or donor.role is not Role.DONOR:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="후원자를 찾을 수 없습니다.")
+    try:
+        accounts.approve_donor(db, user, donor)
+    except accounts.AccountError as exc:
+        flash(request, str(exc))
+        return RedirectResponse("/member/donors", status_code=303)
+
+    flash(request, f"{donor.name}님을 승인했습니다. 이제 이 가게의 나눔이 매칭 후보에 오릅니다.")
+    return RedirectResponse("/member/donors", status_code=303)
+
+
+@router.post("/donors/{donor_id}/unapprove")
+def unapprove_donor_account(
+    donor_id: int,
+    request: Request,
+    reason: str = Form(""),
+    user: User = Depends(manager_dep),
+    db: Session = Depends(get_db),
+):
+    """승인 취소 — 가게가 문을 닫거나 문제가 생겼을 때."""
+    donor = db.get(User, donor_id)
+    if donor is None or donor.role is not Role.DONOR:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="후원자를 찾을 수 없습니다.")
+    try:
+        accounts.unapprove_donor(db, user, donor, reason)
+    except accounts.AccountError as exc:
+        flash(request, str(exc))
+        return RedirectResponse("/member/donors", status_code=303)
+
+    flash(request, f"{donor.name}님의 승인을 취소했습니다. 진행 중인 매칭은 그대로 둡니다.")
+    return RedirectResponse("/member/donors", status_code=303)
+
+
 @router.post("/donors")
 def register_donor_account(
     request: Request,
@@ -392,10 +459,10 @@ def register_donor_account(
         )
     except accounts.AccountError as exc:
         flash(request, str(exc))
-        return RedirectResponse("/member/matches", status_code=303)
+        return RedirectResponse("/member/donors", status_code=303)
 
     response = render(
-        request, "member/donor_registered.html", user, "match", donor=donor, pin=pin
+        request, "member/donor_registered.html", user, "donors", donor=donor, pin=pin
     )
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
     response.headers["Pragma"] = "no-cache"

@@ -37,6 +37,11 @@ class User(Base, TimestampMixin):
     # 매니저는 역할이 아니라 위원에게 주는 권한이다 (위원회 결정, 안건 14).
     # "위원 중 한 명이 매니저 역할을 맡으며" — 그래서 Role 을 넷으로 늘리지 않는다.
     is_manager: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+
+    # 후원자 승인 (위원회 결정, 안건 10). 거르는 대상은 물건이 아니라 후원자다 —
+    # 위원이 발굴해 계정을 만들고, 매니저가 승인해야 그 후원자의 나눔글이 위원에게 보인다.
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    approved_by_id: Mapped[int | None] = mapped_column(ForeignKey("user.id"), default=None)
     # 운영자가 발급하거나 초기화한 임시 비밀번호로는 비밀번호 변경 화면만 쓸 수 있다.
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     appointed_note: Mapped[str | None] = mapped_column(Text, default=None)
@@ -45,10 +50,21 @@ class User(Base, TimestampMixin):
     failed_logins: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
+    approved_by: Mapped["User | None"] = relationship(
+        foreign_keys=[approved_by_id], remote_side="User.id"
+    )
+
     # Shop 은 user 를 두 번 참조한다(owner_id, certified_by_id). 소유 관계만 연결한다.
     shop: Mapped["Shop | None"] = relationship(
         back_populates="owner", uselist=False, foreign_keys="Shop.owner_id"
     )
+
+    @property
+    def is_approved(self) -> bool:
+        """후원자만 승인이 필요하다. 위원·운영자는 계정 발급 자체가 승인이다."""
+        if self.role is not Role.DONOR:
+            return True
+        return self.approved_at is not None
 
     def __repr__(self) -> str:
         return f"<User {self.id} {self.role.value} {self.name}>"

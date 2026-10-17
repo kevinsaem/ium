@@ -2,20 +2,20 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from datetime import datetime
-
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, DeliveryMethod, OfferKind, OfferStatus, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.match import Match
-    from app.models.user import Shop, User
+    from app.models.user import Shop
 
 
 class Offer(Base, TimestampMixin):
     """후원자가 '내놓기(Push)'로 올린 나눔글.
+
+    승인된 후원자가 올린 글은 바로 위원의 매칭 후보에 오른다 (위원회 결정, 안건 10).
 
     받는 분이 누구인지는 이 테이블 어디에도 없다. Offer 는 Match 를 통해
     비식별 Case 코드에만 연결된다.
@@ -35,17 +35,11 @@ class Offer(Base, TimestampMixin):
     )
     detail: Mapped[str | None] = mapped_column(Text, default=None)
     status: Mapped[OfferStatus] = mapped_column(
-        Enum(OfferStatus, native_enum=False), default=OfferStatus.PENDING, index=True
+        Enum(OfferStatus, native_enum=False), default=OfferStatus.OPEN, index=True
     )
-
-    # 운영팀의 노출 심사 기록. 거절 사유는 후원자에게 그대로 보인다.
-    reviewed_by_id: Mapped[int | None] = mapped_column(ForeignKey("user.id"), default=None)
-    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    review_note: Mapped[str | None] = mapped_column(Text, default=None)
 
     shop: Mapped["Shop"] = relationship(back_populates="offers")
     matches: Mapped[list["Match"]] = relationship(back_populates="offer")
-    reviewed_by: Mapped["User | None"] = relationship(foreign_keys=[reviewed_by_id])
 
     def __repr__(self) -> str:
         return f"<Offer {self.id} {self.title}>"

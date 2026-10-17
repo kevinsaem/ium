@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from datetime import datetime, timezone
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -76,6 +77,7 @@ def seeded(db) -> dict[str, User]:
     member1 = User(
         email="member1@ium.test", password_hash=hash_password("ium1234"),
         name="이관희 위원", role=Role.MEMBER,
+        is_manager=True,  # 매니저는 위원 중 한 명 (위원회 결정, 안건 14)
     )
     member2 = User(
         email="member2@ium.test", password_hash=hash_password("ium1234"),
@@ -84,6 +86,8 @@ def seeded(db) -> dict[str, User]:
     donor = User(
         email="blue@ium.test", password_hash=hash_password("ium1234"),
         name="최세탁", role=Role.DONOR,
+        # 승인된 후원자 (위원회 결정, 안건 10). 승인 흐름은 따로 테스트한다.
+        approved_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
     )
     db.add_all([office, member1, member2, donor])
     db.flush()
