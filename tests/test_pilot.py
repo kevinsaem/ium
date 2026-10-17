@@ -155,18 +155,22 @@ def test_cancelled_matches_are_counted_separately(db, seeded):
 
 
 def test_counting_is_limited_to_the_pilot_window(db, seeded):
-    """기간을 정하면 그 전에 올라온 나눔글은 빠진다."""
-    old = _offer(db, when=datetime(2026, 1, 5, 3, 0))
-    recent = _offer(db, when=datetime(2026, 10, 20, 3, 0))
+    """기간을 정하면 그 전에 올라온 나눔글은 빠진다.
+
+    기간을 과거로 고정한다. '이번 달'로 잡으면 시드 데이터가 기간 안에 들어와, 날짜가
+    지나면서 테스트가 깨진다 — 실제로 한 번 깨졌다.
+    """
+    before = _offer(db, when=datetime(2025, 12, 5, 3, 0))   # 기간 전
+    inside = _offer(db, when=datetime(2026, 1, 20, 3, 0))   # 기간 안
 
     policy = retention.current(db)
-    policy.pilot_start = date(2026, 10, 15)
+    policy.pilot_start = date(2026, 1, 15)
     policy.pilot_months = 1
     db.commit()
 
     counts = pilot.funnel(db, pilot.window(policy))
-    assert counts["offers_posted"] == 1  # recent 만
-    assert old.id != recent.id
+    assert counts["offers_posted"] == 1  # inside 만. 시드 나눔글도 기간 밖이다.
+    assert before.id != inside.id
 
 
 def test_goals_are_shops_and_deliveries_only(db, seeded):

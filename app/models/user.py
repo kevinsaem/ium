@@ -34,6 +34,9 @@ class User(Base, TimestampMixin):
 
     # 위원 위촉 관리 (운영자가 승인)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # 매니저는 역할이 아니라 위원에게 주는 권한이다 (위원회 결정, 안건 14).
+    # "위원 중 한 명이 매니저 역할을 맡으며" — 그래서 Role 을 넷으로 늘리지 않는다.
+    is_manager: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # 운영자가 발급하거나 초기화한 임시 비밀번호로는 비밀번호 변경 화면만 쓸 수 있다.
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     appointed_note: Mapped[str | None] = mapped_column(Text, default=None)

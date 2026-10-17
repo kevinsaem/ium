@@ -551,6 +551,36 @@ def reset_donor_account(
     return _show_temp_password(request, user, donor, pin, "reset_pin")
 
 
+@router.post("/members/{member_id}/manager")
+def set_manager(
+    member_id: int,
+    request: Request,
+    grant: str = Form(""),
+    user: User = Depends(office_dep),
+    db: Session = Depends(get_db),
+):
+    """매니저 권한 지정·해제 (위원회 결정, 안건 14).
+
+    매니저는 위원 중 한 명이다. 누가 맡을지는 정례회의에서 정하고, 운영자가 그 결정을
+    화면에 반영한다 — 매니저가 스스로 다른 사람에게 넘길 수는 없다.
+    """
+    member = db.get(User, member_id)
+    if member is None or member.role is not Role.MEMBER:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="위원을 찾을 수 없습니다.")
+
+    member.is_manager = bool(grant)
+    accounts.log_event(
+        db, member, "grant_manager" if member.is_manager else "revoke_manager", user,
+        "정례회의 결정 반영",
+    )
+    db.commit()
+    flash(
+        request,
+        f"{member.name} 위원에게 매니저 권한을 {'부여' if member.is_manager else '해제'}했습니다.",
+    )
+    return RedirectResponse("/office/members", status_code=303)
+
+
 @router.post("/members/{member_id}/toggle")
 def toggle_member(
     member_id: int, request: Request, user: User = Depends(office_dep), db: Session = Depends(get_db)

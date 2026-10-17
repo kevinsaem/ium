@@ -5,7 +5,12 @@
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from app.models.base import Role
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 # 리소스별 (읽기 허용 역할, 쓰기 허용 역할)
 MATRIX: dict[str, dict[str, tuple[Role, ...]]] = {
@@ -33,6 +38,24 @@ MATRIX: dict[str, dict[str, tuple[Role, ...]]] = {
 }
 
 
+# 매니저만 하는 일 (위원회 결정, 안건 10·14·15). 역할이 아니라 위원에게 주는 권한이라
+# MATRIX 와 따로 둔다 — 같은 표에 섞으면 '위원'과 '매니저'가 한 칸에서 뒤섞인다.
+MANAGER_RESOURCES = {
+    "donor_approval": "후원자 승인",
+    "account_unlock": "계정 잠금 해제",
+    "team_contact": "운영팀 연락처 설정",
+}
+
+
+def is_manager(user: "User") -> bool:
+    """매니저는 위촉 중인 위원이어야 한다. 해제된 위원의 권한은 함께 멈춘다."""
+    return user.role is Role.MEMBER and bool(user.is_manager) and bool(user.is_active)
+
+
+def manager_can(user: "User", resource: str) -> bool:
+    return resource in MANAGER_RESOURCES and is_manager(user)
+
+
 def can(role: Role, resource: str, action: str = "read") -> bool:
     entry = MATRIX.get(resource)
     if not entry:
@@ -51,4 +74,6 @@ def describe() -> list[dict[str, str]]:
                 "write": ", ".join(r.tag for r in actions.get("write", ())) or "—",
             }
         )
+    for resource in MANAGER_RESOURCES:
+        rows.append({"resource": resource, "read": "위원(매니저)", "write": "위원(매니저)"})
     return rows

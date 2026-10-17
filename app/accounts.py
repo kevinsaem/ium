@@ -40,6 +40,8 @@ ACTION_LABELS = {
     "locked": "연속 실패로 잠김",
     "deactivate": "위촉 해제",
     "reactivate": "위촉 복구",
+    "grant_manager": "매니저 권한 부여",
+    "revoke_manager": "매니저 권한 해제",
 }
 
 
