@@ -47,8 +47,12 @@ class User(Base, TimestampMixin):
     appointed_note: Mapped[str | None] = mapped_column(Text, default=None)
 
     # 숫자 4자리는 1만 가지뿐이라 하나씩 넣어 보는 시도에 약하다. 연속 실패를 세서 잠근다.
+    #
+    # 잠금은 시간이 지나 저절로 풀리지 않는다 — 매니저가 해제한다 (위원회 결정, 안건 15).
+    # 10분 뒤 자동 해제로 두면 매니저 화면에는 아무것도 뜨지 않아, '매니저가 해제한다'는
+    # 결정이 사실상 없는 기능이 된다. 대신 로그인 화면에 운영팀 연락처를 띄운다.
     failed_logins: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
-    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     approved_by: Mapped["User | None"] = relationship(
         foreign_keys=[approved_by_id], remote_side="User.id"

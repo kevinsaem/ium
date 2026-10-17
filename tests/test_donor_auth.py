@@ -216,9 +216,9 @@ def test_repeated_wrong_pins_lock_the_account(db, client):
     assert "잠겼습니다" in _flash(client)
 
     db.expire_all()
-    assert accounts.lock_remaining(db.get(User, donor.id)) > 0
+    assert accounts.is_locked(db.get(User, donor.id))
 
-    # 맞는 숫자를 넣어도 잠금이 풀리기 전에는 들어갈 수 없다
+    # 맞는 숫자를 넣어도 매니저가 풀어 주기 전에는 들어갈 수 없다 (안건 15)
     assert _pin_login(client).headers["location"] == "/login"
 
 
@@ -417,7 +417,7 @@ def test_reset_lets_a_locked_out_donor_back_in(db, seeded, client):
     client.get("/logout")
 
     db.expire_all()
-    assert accounts.lock_remaining(db.get(User, donor_id)) == 0
+    assert not accounts.is_locked(db.get(User, donor_id))
     assert _pin_login(client, pin="0001").headers["location"] == "/account/password"
 
 

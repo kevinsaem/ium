@@ -469,6 +469,60 @@ def register_donor_account(
     return response
 
 
+@router.get("/manage")
+def manage(request: Request, user: User = Depends(manager_dep), db: Session = Depends(get_db)):
+    """매니저 화면 — 잠긴 계정과 운영팀 연락처 (위원회 결정, 안건 15)."""
+    return render(
+        request,
+        "member/manage.html",
+        user,
+        "manage",
+        locked=accounts.locked_accounts(db),
+        policy=retention.current(db),
+        max_failed=accounts.MAX_FAILED_LOGINS,
+    )
+
+
+@router.post("/manage/unlock/{user_id}")
+def unlock_account(
+    user_id: int,
+    request: Request,
+    user: User = Depends(manager_dep),
+    db: Session = Depends(get_db),
+):
+    target = db.get(User, user_id)
+    if target is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="계정을 찾을 수 없습니다.")
+    try:
+        accounts.unlock_by_manager(db, user, target)
+    except accounts.AccountError as exc:
+        flash(request, str(exc))
+        return RedirectResponse("/member/manage", status_code=303)
+
+    flash(request, f"{target.name}님의 잠금을 해제했습니다.")
+    return RedirectResponse("/member/manage", status_code=303)
+
+
+@router.post("/manage/contact")
+def update_contact(
+    request: Request,
+    contact: str = Form(""),
+    user: User = Depends(manager_dep),
+    db: Session = Depends(get_db),
+):
+    try:
+        policy = retention.update_team_contact(db, user, contact)
+    except retention.PolicyError as exc:
+        flash(request, str(exc))
+        return RedirectResponse("/member/manage", status_code=303)
+
+    if policy.team_contact:
+        flash(request, f"운영팀 연락처를 '{policy.team_contact}' 로 저장했습니다.")
+    else:
+        flash(request, "운영팀 연락처를 비웠습니다. 로그인 화면에 연락처가 뜨지 않습니다.")
+    return RedirectResponse("/member/manage", status_code=303)
+
+
 @router.get("/report")
 def report(request: Request, user: User = Depends(member_dep), db: Session = Depends(get_db)):
     """월간 활동 보고서 초안 — 비식별 코드만으로 생성된다. 계산은 동 전체 보고서와 같다."""

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, func, text
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -46,6 +46,10 @@ class Policy(Base):
     pilot_months: Mapped[int] = mapped_column(
         Integer, default=DEFAULT_PILOT_MONTHS, server_default=text(str(DEFAULT_PILOT_MONTHS))
     )
+
+    # 로그인 화면에 띄우는 운영팀 연락처 (위원회 결정, 안건 15).
+    # 잠긴 분이 어디로 연락할지 모르는 것이 잠금 자체보다 불편하다.
+    team_contact: Mapped[str | None] = mapped_column(String(120), default=None)
 
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("user.id"), default=None)
     updated_at: Mapped[datetime] = mapped_column(

@@ -33,6 +33,12 @@ def _demo_users(db: Session) -> list[User]:
     return list(db.scalars(select(User).order_by(User.role, User.id)).all())
 
 
+def _team_contact_value(db: Session) -> str | None:
+    from app import retention
+
+    return retention.current(db).team_contact
+
+
 def _page(request: Request, db: Session, template: str, **extra):
     return templates.TemplateResponse(
         request,
@@ -42,6 +48,7 @@ def _page(request: Request, db: Session, template: str, **extra):
             "demo_users": _demo_users(db),
             "settings": settings,
             "pin_length": PIN_LENGTH,
+            "team_contact": _team_contact_value(db),
             **extra,
         },
     )
@@ -66,6 +73,19 @@ def login_form(
     return _page(request, db, "auth/login.html", email=email)
 
 
+def _contact(db: Session) -> str:
+    """잠긴 분에게 어디로 연락할지 알려 준다 (위원회 결정, 안건 15).
+
+    잠금이 시간이 지나 풀리지 않으므로, 연락처가 없으면 들어올 길이 없다.
+    """
+    from app import retention
+
+    contact = retention.current(db).team_contact
+    if contact:
+        return f"운영팀에 연락해 주세요 — {contact}"
+    return "운영팀에 연락해 잠금을 풀어 주세요."
+
+
 def _deny(request: Request, message: str):
     request.session["flash"] = message
     return RedirectResponse("/login", status_code=303)
@@ -88,17 +108,15 @@ def _sign_in(request: Request, db: Session, user: User | None, secret: str, wron
     if user is None:
         return _deny(request, wrong)
 
-    locked = accounts.lock_remaining(user)
-    if locked:
-        return _deny(request, f"연속 실패로 잠겼습니다. {locked}분 후에 다시 시도해 주세요.")
+    if accounts.is_locked(user):
+        return _deny(request, f"연속 실패로 잠긴 계정입니다. {_contact(db)}")
 
     if not verify_password(secret, user.password_hash):
         left = accounts.record_failure(db, user)
         if left == 0:
             return _deny(
                 request,
-                f"{accounts.MAX_FAILED_LOGINS}회 연속 틀려 "
-                f"{accounts.LOCK_MINUTES}분간 잠겼습니다.",
+                f"{accounts.MAX_FAILED_LOGINS}회 연속 틀려 계정이 잠겼습니다. {_contact(db)}",
             )
         return _deny(request, f"{wrong} ({left}번 남음)")
 

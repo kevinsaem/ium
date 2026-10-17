@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="banner">
+  <div class="seal ic-svg">{{ icon('shield') }}</div>
+  <div>
+    <b>매니저 화면</b>
+    <p>잠긴 계정을 풀어 주고, 로그인 화면에 띄울 운영팀 연락처를 정합니다.</p>
+  </div>
+</div>
+
+<div class="sectit">잠긴 계정 · {{ locked | length }}건</div>
+{% for u in locked %}
+<div class="card" style="cursor:default">
+  <div class="row">
+    <div class="thumb ic-svg">{{ icon('lock') }}</div>
+    <div class="meta">
+      <h3>{{ u.name }}</h3>
+      <div class="sub">{{ u.role.tag }} · {{ u.phone or u.email or '연락처 없음' }}</div>
+      <div class="sub">{{ u.locked_at | local }} 잠김</div>
+    </div>
+  </div>
+  <form method="post" action="/member/manage/unlock/{{ u.id }}">
+    <button class="btn sm" type="submit" style="width:100%">잠금 해제</button>
+  </form>
+</div>
+{% else %}
+<div class="empty" style="padding:22px">잠긴 계정이 없습니다.</div>
+{% endfor %}
+<p class="legend">
+  {{ max_failed }}회 연속 틀리면 잠깁니다. 잠금은 <b>시간이 지나도 풀리지 않습니다</b> —
+  본인이 운영팀에 연락하면 여기서 풀어 주세요.<br>
+  숫자 4자리를 잊으신 후원자는 <a href="/member/donors">후원자 화면</a>에서 초기화할 수도 있습니다.
+</p>
+
+<div class="sectit">운영팀 연락처</div>
+<form method="post" action="/member/manage/contact">
+  <div class="field">
+    <label>로그인 화면에 띄울 연락처</label>
+    <input name="contact" value="{{ policy.team_contact or '' }}"
+           placeholder="예) 선부3동 협의체 010-1234-5678" maxlength="120">
+  </div>
+  <button class="btn ghost" type="submit">연락처 저장</button>
+</form>
+<p class="legend">
+  잠긴 분이 어디로 연락할지 모르는 것이 잠금 자체보다 불편합니다. 비워 두면 로그인 화면에
+  연락처 없이 "운영팀에 연락해 주세요"만 뜹니다.
+  {% if policy.updated_by %}<br>마지막 변경: {{ policy.updated_at | local }} · {{ policy.updated_by.name }}{% endif %}
+</p>
+{% endblock %}

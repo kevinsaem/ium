@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from app.config import settings
 from app.icons import icon
 from app.models import Role, User
+from app.permissions import is_manager
 from app.timeutil import to_local
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -41,6 +42,17 @@ TABS: dict[Role, list[dict[str, str]]] = {
     ],
 }
 
+# 매니저 전용 탭. 매니저는 위원 중 한 명이라(안건 14) 위원 탭 뒤에 붙인다.
+MANAGER_TAB = {"key": "manage", "href": "/member/manage", "icon": "shield", "label": "매니저"}
+
+
+def tabs_for(user: User) -> list[dict[str, str]]:
+    tabs = list(TABS[user.role])
+    if is_manager(user):
+        tabs.append(MANAGER_TAB)
+    return tabs
+
+
 HOME: dict[Role, str] = {Role.DONOR: "/donor", Role.MEMBER: "/member", Role.OFFICE: "/office"}
 
 
@@ -53,7 +65,7 @@ def render(
         template,
         {
             "user": user,
-            "tabs": TABS[user.role],
+            "tabs": tabs_for(user),
             "active_tab": active_tab,
             "flash": flash,
             **ctx,

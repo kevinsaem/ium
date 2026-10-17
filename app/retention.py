@@ -122,3 +122,20 @@ def expired(db: Session, months: int, today: date | None = None) -> list[Case]:
         and (due := deadline(c, months)) is not None
         and due < today
     ]
+
+
+def update_team_contact(db: Session, actor: User, raw: str) -> Policy:
+    """운영팀 연락처 — 매니저가 설정한다 (위원회 결정, 안건 15).
+
+    로그인 화면에 그대로 뜬다. 잠긴 분이 연락할 곳이라 비워 두면 잠금을 풀 길이 없다.
+    """
+    contact = (raw or "").strip()
+    if len(contact) > 120:
+        raise PolicyError("연락처가 너무 깁니다. 120자 안으로 적어 주세요.")
+
+    policy = current(db)
+    policy.team_contact = contact or None
+    policy.updated_by_id = actor.id
+    db.commit()
+    db.refresh(policy)
+    return policy

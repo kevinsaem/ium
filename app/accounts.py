@@ -39,6 +39,7 @@ ACTION_LABELS = {
     "change_password": "비밀번호 변경",
     "change_pin": "숫자 4자리 변경",
     "locked": "연속 실패로 잠김",
+    "unlocked": "매니저가 잠금 해제",
     "deactivate": "위촉 해제",
     "reactivate": "위촉 복구",
     "grant_manager": "매니저 권한 부여",
@@ -287,27 +288,18 @@ def _attach_shop(db: Session, donor: User, shop_name: str) -> None:
 # 이메일 로그인에도 같이 적용한다 — 막을 이유는 같다.
 
 MAX_FAILED_LOGINS = 5
-LOCK_MINUTES = 10
 
 
-def lock_remaining(user: User) -> int:
-    """잠금이 풀릴 때까지 남은 분. 잠겨 있지 않으면 0."""
-    if user.locked_until is None:
-        return 0
-    now = datetime.now(timezone.utc)
-    until = user.locked_until
-    if until.tzinfo is None:
-        until = until.replace(tzinfo=timezone.utc)
-    if until <= now:
-        return 0
-    return max(1, int((until - now).total_seconds() // 60) + 1)
+def is_locked(user: User) -> bool:
+    """잠금은 시간이 지나 풀리지 않는다. 매니저가 해제한다 (위원회 결정, 안건 15)."""
+    return user.locked_at is not None
 
 
 def record_failure(db: Session, user: User) -> int:
     """실패를 세고, 한도를 넘으면 잠근다. 남은 시도 횟수를 돌려준다."""
     user.failed_logins = (user.failed_logins or 0) + 1
     if user.failed_logins >= MAX_FAILED_LOGINS:
-        user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=LOCK_MINUTES)
+        user.locked_at = datetime.now(timezone.utc)
         user.failed_logins = 0
         log_event(db, user, "locked", None, f"{MAX_FAILED_LOGINS}회 연속 실패")
         db.commit()
@@ -317,10 +309,35 @@ def record_failure(db: Session, user: User) -> int:
 
 
 def unlock(db: Session, user: User, commit: bool = True) -> None:
+    """실패 횟수와 잠금을 함께 지운다. 로그인 성공과 초기화에서 쓴다."""
     user.failed_logins = 0
-    user.locked_until = None
+    user.locked_at = None
     if commit:
         db.commit()
+
+
+def unlock_by_manager(db: Session, manager: User, target: User) -> User:
+    """매니저가 잠금을 해제한다.
+
+    잠긴 사람은 운영팀에 연락해야 한다. 그 연락처를 로그인 화면에 띄우는 것이 같은 안건의
+    나머지 절반이다 — 연락할 곳을 모르면 잠금을 풀 길이 없다.
+    """
+    if not permissions.is_manager(manager):
+        raise AccountError("잠금 해제는 매니저 권한이 있는 위원만 할 수 있습니다.")
+    if not is_locked(target):
+        raise AccountError(f"{target.name}님의 계정은 잠겨 있지 않습니다.")
+
+    unlock(db, target, commit=False)
+    log_event(db, target, "unlocked", manager)
+    db.commit()
+    return target
+
+
+def locked_accounts(db: Session) -> list[User]:
+    """잠긴 계정 — 매니저 화면에 띄운다."""
+    return list(
+        db.scalars(select(User).where(User.locked_at.is_not(None)).order_by(User.locked_at)).all()
+    )
 
 
 def approve_donor(db: Session, manager: User, donor: User) -> User:
