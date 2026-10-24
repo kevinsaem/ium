@@ -84,7 +84,21 @@
     <div class="field"><label>주소</label><input name="address"></div>
     <div class="field"><label>상담 메모</label><textarea name="consult_note"></textarea></div>
     <div class="field"><label>동의 근거 메모</label><input name="consent_note" placeholder="예) 2026-08-20 대면 상담 시 구두 동의"></div>
-    <label class="check"><input type="checkbox" name="consent_given" value="1"> 정보주체 수집·이용 동의를 받았습니다</label>
+
+    <div class="sensitive" style="margin:12px 0">
+      <div class="shd"><span class="ic-svg">{{ icon('shield') }}</span> 동의를 받을 때 읽어 드릴 내용</div>
+      <p class="defmeta" style="margin:0">
+        "성함·연락처·주소는 나눔을 전해 드리는 데만 씁니다. 담당 위원만 볼 수 있고, 열어 볼
+        때마다 이유가 기록됩니다.<br>
+        <b>누가 언제 무엇을 받았는지는 케이스 종결 후 {{ retention_months }}개월({{ (retention_months / 12) | round | int }}년)까지 보관</b>하고
+        그 뒤에 파기합니다. 협의체 운영과 보고에 필요한 기록이기 때문입니다.<br>
+        동의하지 않으셔도 도움은 받을 수 있습니다. 그때는 성함 대신 비식별 코드만 씁니다."
+      </p>
+    </div>
+    <label class="check"><input type="checkbox" name="consent_given" value="1"> 위 내용을 읽어 드리고 수집·이용 동의를 받았습니다</label>
+    <p class="legend" style="margin:6px 0 0">
+      동의가 보관의 근거입니다. 동의 없이는 성함·연락처를 저장할 수 없습니다.
+    </p>
     <button class="btn" type="submit">암호화하여 저장</button>
   </form>
 </details>
@@ -100,6 +114,22 @@
 </div>
 {% endfor %}
 {% endif %}
+
+<!-- ─────────── 받은 내역 ─────────── -->
+<div class="sectit">받은 내역</div>
+{% for m in case.matches if m.status.value == 'delivered' %}
+<div class="card" style="cursor:default;padding:11px 13px">
+  <div class="meta">
+    <h3 style="font-size:12.5px">{{ m.delivered_at | local('%Y-%m-%d') }} · {{ m.offer.title }}</h3>
+    <div class="sub">{{ m.offer.shop.name }}{% if m.delivery_note %} · {{ m.delivery_note }}{% endif %}</div>
+  </div>
+</div>
+{% else %}
+<div class="empty" style="padding:22px">아직 전달된 내역이 없습니다.</div>
+{% endfor %}
+<p class="legend">
+  이 기록은 종결 후 <b>{{ retention_months }}개월</b>까지 보관합니다. 협의체 운영과 보고의 근거입니다.
+</p>
 
 <!-- ─────────── 매칭 ─────────── -->
 <div class="sectit">매칭</div>

@@ -90,10 +90,24 @@ def upsert_identity(
     consent_note: str | None = None,
     consent_given: bool = False,
 ) -> CaseIdentity:
+    """식별정보 등록·수정.
+
+    동의가 보관의 근거다 (위원회 결정, 안건 09 — "후원받는 분의 동의를 받아 ... 3년간
+    보관한다"). 동의 없이 저장할 수 있게 두면 근거 없는 보관이 생긴다. 그래서 처음 저장할
+    때 동의 표시를 요구한다 — 이미 동의가 기록된 케이스는 수정할 때 다시 묻지 않는다.
+    """
     _authorize(actor, case, "write")
 
     identity = case.identity
     if identity is None:
+        if not consent_given:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "정보주체의 수집·이용 동의를 받아야 저장할 수 있습니다. "
+                    "동의 확인란에 체크하고 근거를 메모에 남겨 주세요."
+                ),
+            )
         identity = CaseIdentity(case_id=case.id)
         db.add(identity)
         case.identity = identity

@@ -1,10 +1,15 @@
 """식별정보 보관 기한 테스트.
 
-위원회 결정(2026-09-19, 안건 01): 케이스 종결 후 3개월까지 보관하고 파기한다. 기간은
-하드코딩하지 않고 운영자가 화면에서 바꾼다.
+기간이 두 번 정해졌다.
 
-이 파일이 지키는 것은 두 가지다 — 기한이 제대로 계산되는가, 그리고 운영자가 기한을
-집행하면서도 내용을 보지는 못하는가.
+    1차(안건 01): 종결 후 3개월까지 보관하고 파기.
+    2차(안건 09): "식별정보를 전부 파기하지 않는다. 후원받는 분의 동의를 받아 누가 언제
+                 무엇을 받았는지 기록을 3년간 보관한다."
+
+지금은 36개월이고, 동의가 보관의 근거다. 기간은 여전히 운영자가 화면에서 바꾼다.
+
+이 파일이 지키는 것은 셋이다 — 기한이 제대로 계산되는가, 동의 없이 저장되지 않는가,
+그리고 운영자가 기한을 집행하면서도 내용을 보지는 못하는가.
 """
 from __future__ import annotations
 
@@ -38,9 +43,9 @@ def _close(db, case, when: datetime) -> Case:
 # --- 기본값과 변경 -----------------------------------------------------------
 
 
-def test_default_is_three_months(db):
-    """회의에서 정한 기본값. 코드가 아니라 DB 에 있고 화면에서 바뀐다."""
-    assert retention.current(db).identity_retention_months == DEFAULT_RETENTION_MONTHS == 3
+def test_default_is_three_years(db):
+    """2차 회의(안건 09)에서 3개월 -> 3년으로 바뀌었다. 코드가 아니라 DB 에 있다."""
+    assert retention.current(db).identity_retention_months == DEFAULT_RETENTION_MONTHS == 36
 
 
 def test_policy_row_is_created_once(db):
@@ -72,7 +77,7 @@ def test_bad_period_is_guided_and_keeps_the_old_value(db, seeded, client, bad, e
 
     assert expect in body
     db.expire_all()
-    assert retention.current(db).identity_retention_months == 3
+    assert retention.current(db).identity_retention_months == 36
 
 
 def test_only_office_can_change_the_period(db, seeded, client):
@@ -84,7 +89,7 @@ def test_only_office_can_change_the_period(db, seeded, client):
         assert res.headers["location"] == "/", email
 
     db.expire_all()
-    assert retention.current(db).identity_retention_months == 3
+    assert retention.current(db).identity_retention_months == 36
 
 
 # --- 기한 계산 ---------------------------------------------------------------
@@ -195,7 +200,7 @@ def test_office_sees_the_deadline_but_not_the_contents(db, seeded, client):
 
 def test_overdue_warning_appears_on_the_dashboard(db, seeded, client):
     case = db.scalar(select(Case))
-    _close(db, case, datetime(2026, 1, 15, 3, 0))
+    _close(db, case, datetime(2020, 1, 15, 3, 0))  # 36개월을 훌쩍 넘긴 종결
 
     _login(client, "office@ium.test")
     assert "파기 기한 초과" in client.get("/office").text
@@ -207,12 +212,13 @@ def test_no_warning_when_nothing_is_overdue(db, seeded, client):
 
 
 def test_member_sees_the_deadline_on_the_case(db, seeded, client):
+    """기본 보관 기간이 36개월이므로 2026-01-15 종결이면 기한은 2029-01-15 다."""
     case = db.scalar(select(Case).where(Case.member_id == seeded["member1"].id))
     _close(db, case, datetime(2026, 1, 15, 3, 0))
 
     _login(client, "member1@ium.test")
     body = client.get(f"/member/cases/{case.id}").text
-    assert "파기 기한" in body and "2026-04-15" in body
+    assert "파기 기한" in body and "2029-01-15" in body
 
 
 # --- 운영자의 기한 집행 권한 -------------------------------------------------
@@ -221,7 +227,7 @@ def test_member_sees_the_deadline_on_the_case(db, seeded, client):
 def test_office_can_destroy_without_being_able_to_read(db, seeded):
     """'운영자는 식별정보를 볼 수 없다'와 '보관 기한을 집행한다'가 함께 성립해야 한다."""
     case = db.scalar(select(Case))
-    _close(db, case, datetime(2026, 1, 15, 3, 0))
+    _close(db, case, datetime(2020, 1, 15, 3, 0))
 
     # 읽기는 여전히 막힌다
     with pytest.raises(Exception) as exc:
@@ -279,7 +285,7 @@ def test_permission_matrix_shows_the_retention_boundary(db, seeded, client):
 def test_purge_command_shows_targets_before_touching_anything(db, seeded, client, tmp_path):
     """기본이 '보여 주기'인 이유: 파기는 되돌릴 수 없다."""
     case = db.scalar(select(Case))
-    _close(db, case, datetime(2026, 1, 15, 3, 0))
+    _close(db, case, datetime(2020, 1, 15, 3, 0))
     code = case.code
 
     env = {
@@ -302,7 +308,7 @@ def test_purge_command_shows_targets_before_touching_anything(db, seeded, client
 
 def test_purge_command_needs_an_actor_for_the_record(db, seeded, tmp_path):
     case = db.scalar(select(Case))
-    _close(db, case, datetime(2026, 1, 15, 3, 0))
+    _close(db, case, datetime(2020, 1, 15, 3, 0))
 
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONPATH": str(ROOT)}
     result = subprocess.run(
@@ -319,7 +325,7 @@ def test_purge_command_needs_an_actor_for_the_record(db, seeded, tmp_path):
 def test_purge_command_destroys_and_records_who_ran_it(db, seeded):
     """--apply 는 실제로 지운다. 행위자가 기록에 남아야 나중에 설명할 수 있다."""
     case = db.scalar(select(Case))
-    _close(db, case, datetime(2026, 1, 15, 3, 0))
+    _close(db, case, datetime(2020, 1, 15, 3, 0))
     case_id = case.id
 
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONPATH": str(ROOT)}
@@ -345,7 +351,7 @@ def test_purge_command_destroys_and_records_who_ran_it(db, seeded):
 
 def test_purge_command_refuses_a_member_as_actor(db, seeded):
     case = db.scalar(select(Case))
-    _close(db, case, datetime(2026, 1, 15, 3, 0))
+    _close(db, case, datetime(2020, 1, 15, 3, 0))
 
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONPATH": str(ROOT)}
     result = subprocess.run(
@@ -357,3 +363,94 @@ def test_purge_command_refuses_a_member_as_actor(db, seeded):
     assert "운영자 계정을 찾을 수 없습니다" in result.stderr
     db.expire_all()
     assert db.get(Case, case.id).identity is not None
+
+
+# --- 동의가 보관의 근거다 (안건 09) ----------------------------------------
+
+
+def test_identity_cannot_be_saved_without_consent(db, seeded, client):
+    """동의 없이 저장할 수 있게 두면 근거 없는 보관이 생긴다."""
+    from app.models import CaseIdentity
+
+    case = Case(code="선부3동 X가정", need_summary="반찬", member_id=seeded["member1"].id)
+    db.add(case)
+    db.commit()
+
+    _login(client, "member1@ium.test")
+    body = client.post(
+        f"/member/cases/{case.id}/identity",
+        data={"name": "홍길동", "phone": "010-1111-2222"},  # 동의 체크 없음
+        follow_redirects=True,
+    ).text
+
+    assert "동의를 받아야 저장할 수 있습니다" in body
+    assert db.scalar(select(CaseIdentity).where(CaseIdentity.case_id == case.id)) is None
+
+
+def test_identity_saves_once_consent_is_recorded(db, seeded, client):
+    from app.models import CaseIdentity
+
+    case = Case(code="선부3동 Y가정", need_summary="반찬", member_id=seeded["member1"].id)
+    db.add(case)
+    db.commit()
+
+    _login(client, "member1@ium.test")
+    client.post(
+        f"/member/cases/{case.id}/identity",
+        data={
+            "name": "홍길동",
+            "phone": "010-1111-2222",
+            "consent_given": "1",
+            "consent_note": "2026-10-17 대면 상담 시 구두 동의",
+        },
+    )
+
+    identity = db.scalar(select(CaseIdentity).where(CaseIdentity.case_id == case.id))
+    assert identity is not None
+    assert identity.consent_obtained_at is not None
+    assert identity.consent_note == "2026-10-17 대면 상담 시 구두 동의"
+
+
+def test_editing_an_already_consented_case_does_not_ask_again(db, seeded, client):
+    """한 번 받은 동의를 수정할 때마다 다시 묻게 하면 위원이 체크만 반복한다."""
+    case = db.scalar(select(Case))  # 시드에서 이미 동의를 받은 케이스
+
+    _login(client, "member1@ium.test")
+    res = client.post(
+        f"/member/cases/{case.id}/identity",
+        data={"name": "홍길동", "phone": "010-9999-8888"},  # 동의 체크 없음
+        follow_redirects=True,
+    )
+
+    assert "동의를 받아야" not in res.text
+    data = identity_service.read_identity(db, case, seeded["member1"], "확인")
+    assert data["phone"] == "010-9999-8888"
+
+
+def test_the_consent_script_states_the_three_year_period(db, seeded, client):
+    """동의 절차와 3년 보관 안내를 앱 안에 넣는다 (안건 09-3)."""
+    case = db.scalar(select(Case))
+    _login(client, "member1@ium.test")
+    body = client.get(f"/member/cases/{case.id}").text
+
+    assert "동의를 받을 때 읽어 드릴 내용" in body
+    assert "36개월" in body and "3년" in body
+    assert "동의하지 않으셔도 도움은 받을 수 있습니다" in body
+
+
+def test_the_case_shows_what_was_received_and_when(db, seeded, client):
+    """"누가 언제 무엇을 받았는지" 가 한 자리에 모여야 기록으로 쓸 수 있다 (안건 09-2)."""
+    from app import matching
+    from app.models import Offer, OfferStatus
+
+    case = db.scalar(select(Case).where(Case.status == CaseStatus.OPEN))
+    offer = db.scalar(select(Offer).where(Offer.status == OfferStatus.OPEN))
+    match = matching.propose(db, case, offer, seeded["member1"])
+    matching.mark_delivered(db, match, seeded["member1"], "현관 앞 전달")
+
+    _login(client, "member1@ium.test")
+    body = client.get(f"/member/cases/{case.id}").text
+
+    assert "받은 내역" in body
+    assert match.offer.title in body
+    assert "종결 후" in body and "36개월" in body

@@ -11,9 +11,18 @@ from app.models.base import Base
 if TYPE_CHECKING:
     from app.models.user import User
 
-# 위원회 결정(2026-09-19, 안건 01): 종결 후 3개월까지 보관하고 그 뒤 파기.
-# "하드코딩으로 하지 말고" 운영자가 화면에서 바꿀 수 있어야 한다.
-DEFAULT_RETENTION_MONTHS = 3
+# 보관 기간은 두 번 정해졌다.
+#
+#   1차(안건 01): 종결 후 3개월까지 보관하고 파기.
+#   2차(안건 09): "식별정보를 전부 파기하지 않는다. 후원받는 분의 동의를 받아 누가 언제
+#                무엇을 받았는지 기록을 3년간 보관한다."
+#
+# 그래서 36개월이다. 동의가 보관의 근거이므로 동의 없이는 저장하지 않는다
+# (app/identity_service.py 의 upsert_identity).
+#
+# "하드코딩으로 하지 말고" 운영자가 화면에서 바꿀 수 있어야 한다는 1차 결정은 그대로 둔다 —
+# 행정복지센터 협의에서 기간이 달라질 수 있다.
+DEFAULT_RETENTION_MONTHS = 36
 MIN_RETENTION_MONTHS = 1
 MAX_RETENTION_MONTHS = 60
 
