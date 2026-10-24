@@ -25,7 +25,10 @@ def _login(client, email: str) -> None:
 def _offer(db, *, when: datetime | None = None, status=OfferStatus.OPEN) -> Offer:
     shop = db.scalar(select(Shop))
     kind = db.scalar(select(Offer)).kind
-    offer = Offer(shop_id=shop.id, title="집계용 나눔", kind=kind, status=status)
+    offer = Offer(
+        council_id=shop.council_id, shop_id=shop.id, title="집계용 나눔",
+        kind=kind, status=status,
+    )
     db.add(offer)
     db.flush()
     if when is not None:
@@ -136,7 +139,7 @@ def test_funnel_separates_every_stage(db, seeded):
     match = matching.propose(db, case, offer, seeded["member1"])
     matching.mark_delivered(db, match, seeded["member1"])
 
-    counts = pilot.funnel(db, pilot.window(retention.current(db)))
+    counts = pilot.funnel(db, pilot.window(retention.current(db)), seeded["office"])
 
     assert counts["donors_waiting"] == 1  # 방금 등록한 사람
     assert counts["offers_posted"] >= 1
@@ -152,7 +155,7 @@ def test_cancelled_matches_are_counted_separately(db, seeded):
     match = matching.propose(db, case, offer, seeded["member1"])
     matching.cancel(db, match, seeded["member1"], "가정 사정")
 
-    counts = pilot.funnel(db, pilot.window(retention.current(db)))
+    counts = pilot.funnel(db, pilot.window(retention.current(db)), seeded["office"])
     assert counts["cancelled"] == 1
     assert counts["matched"] == 0  # 취소된 건은 매칭 성과로 세지 않는다
 
@@ -171,7 +174,7 @@ def test_counting_is_limited_to_the_pilot_window(db, seeded):
     policy.pilot_months = 1
     db.commit()
 
-    counts = pilot.funnel(db, pilot.window(policy))
+    counts = pilot.funnel(db, pilot.window(policy), seeded["office"])
     assert counts["offers_posted"] == 1  # inside 만. 시드 나눔글도 기간 밖이다.
     assert before.id != inside.id
 
@@ -191,7 +194,7 @@ def test_delivered_count_is_the_shared_number(db, seeded):
     match = matching.propose(db, case, offer, seeded["member1"])
     matching.mark_delivered(db, match, seeded["member1"])
 
-    counts = pilot.funnel(db, pilot.window(retention.current(db)))
+    counts = pilot.funnel(db, pilot.window(retention.current(db)), seeded["office"])
     assert counts["delivered"] == 1
 
 

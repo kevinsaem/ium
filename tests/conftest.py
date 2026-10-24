@@ -18,6 +18,7 @@ os.environ["IUM_ENV"] = "development"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import select  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from app import identity_service  # noqa: E402
@@ -26,6 +27,7 @@ from app.main import app  # noqa: E402
 from app.models import (  # noqa: E402
     Base,
     Case,
+    Council,
     DeliveryMethod,
     Offer,
     OfferKind,
@@ -34,6 +36,7 @@ from app.models import (  # noqa: E402
     Shop,
     User,
 )
+from app.models.council import DEFAULT_SLUG  # noqa: E402
 from app.security import hash_password  # noqa: E402
 
 CASES = [
@@ -59,40 +62,84 @@ def db(migrated_db) -> Iterator[Session]:
     지우는 쪽이 단순하고, 서비스 코드가 내부에서 commit() 해도 그대로 통한다.
     """
     session = SessionLocal()
+    # 협의체가 하나도 없는 상태는 운영에서 생기지 않는다 — 마이그레이션이 파일럿 협의체를
+    # 넣어 두고, 자료는 전부 어느 협의체에 속한다. 테이블을 비우는 격리 방식이라 매번
+    # 다시 만들어 그 전제를 유지한다.
+    if session.scalar(select(Council).where(Council.slug == DEFAULT_SLUG)) is None:
+        session.add(
+            Council(
+                slug=DEFAULT_SLUG,
+                region="안산시 단원구",
+                dong="선부3동",
+                approved_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            )
+        )
+        session.commit()
     try:
         yield session
     finally:
         session.close()
         with engine.begin() as conn:
-            for table in reversed(Base.metadata.sorted_tables):
+            # council ↔ user 는 서로를 가리킨다 (협의체를 승인한 사람 / 사람의 소속).
+            # 그래서 sorted_tables 로는 순서를 정할 수 없다. 어차피 전부 지우므로
+            # SQLite 의 외래키 검사를 잠시 끄고 순서 없이 비운다.
+            conn.exec_driver_sql("PRAGMA foreign_keys = OFF")
+            for table in Base.metadata.tables.values():
                 conn.execute(table.delete())
+            conn.exec_driver_sql("PRAGMA foreign_keys = ON")
 
 
 @pytest.fixture()
-def seeded(db) -> dict[str, User]:
+def council(db) -> Council:
+    """파일럿 협의체(선부3동)."""
+    return db.scalar(select(Council).where(Council.slug == DEFAULT_SLUG))
+
+
+@pytest.fixture()
+def other_council(db) -> Council:
+    """경계를 확인할 두 번째 협의체.
+
+    테넌트 격리는 '한 협의체만 있을 때' 는 증명되지 않는다. 옆 동이 실제로 존재하고
+    자기 자료를 가지고 있어야, 조회에서 조건이 빠졌을 때 테스트가 깨진다.
+    """
+    other = Council(
+        slug="sunbu2",
+        region="안산시 단원구",
+        dong="선부2동",
+        approved_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    db.add(other)
+    db.commit()
+    db.refresh(other)
+    return other
+
+
+@pytest.fixture()
+def seeded(db, council) -> dict[str, User]:
+    cid = council.id
     office = User(
         email="office@ium.test", password_hash=hash_password("ium1234"),
-        name="협의체 운영자", role=Role.OFFICE,
+        name="협의체 운영자", role=Role.OFFICE, council_id=cid,
     )
     member1 = User(
         email="member1@ium.test", password_hash=hash_password("ium1234"),
-        name="이관희 위원", role=Role.MEMBER,
+        name="이관희 위원", role=Role.MEMBER, council_id=cid,
         is_manager=True,  # 매니저는 위원 중 한 명 (위원회 결정, 안건 14)
     )
     member2 = User(
         email="member2@ium.test", password_hash=hash_password("ium1234"),
-        name="정미영 위원", role=Role.MEMBER,
+        name="정미영 위원", role=Role.MEMBER, council_id=cid,
     )
     donor = User(
         email="blue@ium.test", password_hash=hash_password("ium1234"),
-        name="최세탁", role=Role.DONOR,
+        name="최세탁", role=Role.DONOR, council_id=cid,
         # 승인된 후원자 (위원회 결정, 안건 10). 승인 흐름은 따로 테스트한다.
         approved_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
     )
     db.add_all([office, member1, member2, donor])
     db.flush()
 
-    shop = Shop(owner_id=donor.id, name="푸른세탁소", category="세탁", walk_minutes=6, is_certified=True)
+    shop = Shop(council_id=cid, owner_id=donor.id, name="푸른세탁소", category="세탁", walk_minutes=6, is_certified=True)
     db.add(shop)
     db.flush()
 
@@ -102,7 +149,7 @@ def seeded(db) -> dict[str, User]:
     ):
         db.add(
             Offer(
-                shop_id=shop.id, title=title, kind=kind, icon="bag",
+                council_id=cid, shop_id=shop.id, title=title, kind=kind, icon="bag",
                 quantity_note=f"{i + 1}건", delivery=DeliveryMethod.MEMBER_PICKUP,
                 # 시드 나눔글은 운영팀 승인을 마친 상태로 둔다. 승인 흐름은 따로 테스트한다.
                 status=OfferStatus.OPEN,
@@ -111,7 +158,7 @@ def seeded(db) -> dict[str, User]:
 
     for code, need, note, urgent, name, phone in CASES:
         case = Case(
-            code=code, need_summary=need, situation_note=note,
+            council_id=cid, code=code, need_summary=need, situation_note=note,
             is_urgent=urgent, member_id=member1.id,
         )
         db.add(case)
@@ -122,7 +169,13 @@ def seeded(db) -> dict[str, User]:
             consent_given=True,
         )
     db.commit()
-    return {"office": office, "member1": member1, "member2": member2, "donor": donor}
+    return {
+        "office": office,
+        "member1": member1,
+        "member2": member2,
+        "donor": donor,
+        "council": council,
+    }
 
 
 @pytest.fixture()

@@ -3,8 +3,8 @@ from __future__ import annotations
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, func
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import DateTime, ForeignKey, func
+from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
 
 def utcnow() -> datetime:
@@ -22,18 +22,50 @@ class TimestampMixin:
     )
 
 
+class CouncilScoped:
+    """협의체에 속한 자료임을 나타내는 표식.
+
+    이 믹스인을 붙인 테이블은 협의체 경계 안에서만 조회된다 — 조건을 손으로 쓰지 않고
+    app/tenancy.py 의 scoped()·assert_same() 을 거친다. 새 테이블을 만들 때 "다른 동
+    위원이 이걸 봐도 되는가" 를 묻고, 아니라면 여기를 붙인다.
+
+    컬럼을 모델마다 따로 쓰지 않고 믹스인으로 둔 건 빠뜨림을 눈에 보이게 하기 위해서다.
+    상속 목록에 CouncilScoped 가 있는지만 보면 그 테이블이 경계 안인지 알 수 있다.
+    """
+
+    @declared_attr
+    def council_id(cls) -> Mapped[int]:
+        return mapped_column(ForeignKey("council.id"), index=True, nullable=False)
+
 class Role(str, enum.Enum):
+    """권한.
+
+    앞의 셋은 한 동 협의체 안에서 성립한다 — 그 바깥을 보는 권한이 SUPER 다.
+    매니저는 역할이 아니라 위원에게 주는 권한이다 (안건 14, User.is_manager).
+    """
+
     DONOR = "donor"    # 후원자 (소상공인·주민)
     MEMBER = "member"  # 협의체 위원
     OFFICE = "office"  # 협의체 운영자
+    SUPER = "super"    # 슈퍼 관리자 — 협의체 경계를 넘는다. 식별정보는 여전히 못 본다.
 
     @property
     def label(self) -> str:
-        return {"donor": "나눔 후원자", "member": "협의체 위원", "office": "협의체 운영자"}[self.value]
+        return {
+            "donor": "나눔 후원자",
+            "member": "협의체 위원",
+            "office": "협의체 운영자",
+            "super": "슈퍼 관리자",
+        }[self.value]
 
     @property
     def tag(self) -> str:
-        return {"donor": "후원자", "member": "위원", "office": "운영자"}[self.value]
+        return {"donor": "후원자", "member": "위원", "office": "운영자", "super": "슈퍼"}[self.value]
+
+    @property
+    def is_scoped(self) -> bool:
+        """협의체 안에서만 성립하는 권한인가. SUPER 만 경계를 넘는다."""
+        return self is not Role.SUPER
 
 
 class OfferKind(str, enum.Enum):

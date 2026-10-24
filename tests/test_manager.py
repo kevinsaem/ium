@@ -31,9 +31,16 @@ def _grant(client, member_id: int, grant: bool = True):
 # --- 매니저는 역할이 아니다 ---------------------------------------------------
 
 
-def test_manager_is_not_a_fourth_role():
-    """역할을 늘리면 권한 표가 네 줄로 늘고 사전 승인에서 설명할 것도 늘어난다."""
-    assert {r.value for r in Role} == {"donor", "member", "office"}
+def test_manager_is_not_a_role_of_its_own():
+    """매니저는 역할이 아니라 위원에게 주는 권한이다 (위원회 결정, 안건 14).
+
+    역할을 늘리면 권한 표가 한 줄 늘고 사전 승인에서 설명할 것도 늘어난다. 그래서
+    매니저를 역할로 만들지 않았다. 지금 역할은 넷이고, 그중 앞의 셋은 한 협의체 안에서
+    성립한다 — 슈퍼 관리자만 그 경계 밖이다 (2026-10-24 결정).
+    """
+    assert {r.value for r in Role} == {"donor", "member", "office", "super"}
+    assert "manager" not in {r.value for r in Role}
+    assert {r.value for r in Role if r.is_scoped} == {"donor", "member", "office"}
 
 
 def test_the_seeded_manager_is_one_member_not_all(db, seeded):

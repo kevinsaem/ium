@@ -74,11 +74,19 @@ def window(policy: Policy) -> Window:
     return Window(start=start, end=end, months=policy.pilot_months)
 
 
-def funnel(db: Session, win: Window) -> dict[str, int]:
-    """단계별 건수. 목표 대비가 아니라 건수 그대로 본다 (위원회 결정, 안건 16)."""
-    offers = list(db.scalars(select(Offer)).all())
-    matches = list(db.scalars(select(Match)).all())
-    donors = list(db.scalars(select(User).where(User.role == Role.DONOR)).all())
+def funnel(db: Session, win: Window, viewer: User) -> dict[str, int]:
+    """단계별 건수. 목표 대비가 아니라 건수 그대로 본다 (위원회 결정, 안건 16).
+
+    지표는 협의체마다 따로 센다. 섞이면 "우리 동이 몇 건 했는지" 가 사라지고, 그 숫자를
+    위원들끼리 공유해 성과 자료로 쓰자던 결정도 의미가 없어진다.
+    """
+    from app import tenancy
+
+    offers = list(db.scalars(tenancy.scoped(select(Offer), Offer, viewer)).all())
+    matches = list(db.scalars(tenancy.scoped(select(Match), Match, viewer)).all())
+    donors = list(
+        db.scalars(tenancy.scoped(select(User), User, viewer).where(User.role == Role.DONOR)).all()
+    )
 
     posted = [o for o in offers if win.contains(o.created_at)]
     matched = [m for m in matches if win.contains(m.created_at)]
@@ -93,5 +101,11 @@ def funnel(db: Session, win: Window) -> dict[str, int]:
         "delivered": len(
             [m for m in matches if m.status is MatchStatus.DELIVERED and win.contains(m.delivered_at)]
         ),
-        "certified_shops": len([s for s in db.scalars(select(Shop)).all() if s.is_certified]),
+        "certified_shops": len(
+            [
+                s
+                for s in db.scalars(tenancy.scoped(select(Shop), Shop, viewer)).all()
+                if s.is_certified
+            ]
+        ),
     }

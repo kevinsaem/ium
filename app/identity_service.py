@@ -32,7 +32,13 @@ def _authorize(actor: User, case: Case, action: str) -> None:
 def _log(db: Session, case: Case, actor: User, action: str, reason: str) -> None:
     db.add(
         IdentityAccessLog(
-            case_id=case.id, actor_id=actor.id, action=action, reason=reason[:200]
+            case_id=case.id,
+            actor_id=actor.id,
+            action=action,
+            reason=reason[:200],
+            # 누가 읽었느냐가 아니라 무엇을 읽었느냐로 소속을 정한다. 슈퍼 관리자가
+            # 읽어도 그 기록은 그 동 협의체의 기록으로 남아야 감사가 끊기지 않는다.
+            council_id=case.council_id,
         )
     )
 

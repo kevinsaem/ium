@@ -84,9 +84,15 @@ def _prepare(db: Session, name: str, email: str) -> tuple[str, str]:
     return name, email
 
 
-def create_office(db: Session, *, name: str, email: str, password: str) -> User:
+def create_office(
+    db: Session, *, name: str, email: str, password: str, council_id: int | None = None
+) -> User:
     """서버 명령으로 운영자를 만든다. 비밀번호를 본인이 정했으므로 변경을 강제하지 않는다."""
+    from app import tenancy
+
     name, email = _prepare(db, name, email)
+    if council_id is None:
+        council_id = tenancy.default(db).id
     problem = validate_new_password(password, email=email)
     if problem:
         raise AccountError(problem)
@@ -95,6 +101,7 @@ def create_office(db: Session, *, name: str, email: str, password: str) -> User:
         email=email,
         name=name,
         role=Role.OFFICE,
+        council_id=council_id,
         password_hash=hash_password(password),
         must_change_password=False,
     )
@@ -115,6 +122,8 @@ def issue_member(
         email=email,
         name=name,
         role=Role.MEMBER,
+        # 발급한 사람과 같은 협의체. 위원을 다른 동에 꽂아 넣을 길을 두지 않는다.
+        council_id=actor.council_id,
         password_hash=hash_password(temp),
         must_change_password=True,
         appointed_note=note,
@@ -188,11 +197,14 @@ def _prepare_donor(db: Session, name: str, phone: str) -> tuple[str, str]:
     return name, digits
 
 
-def _new_donor(db: Session, name: str, phone: str, pin: str, *, must_change: bool) -> User:
+def _new_donor(
+    db: Session, name: str, phone: str, pin: str, *, must_change: bool, council_id: int
+) -> User:
     donor = User(
         name=name,
         phone=phone,
         role=Role.DONOR,
+        council_id=council_id,
         password_hash=hash_password(pin),
         must_change_password=must_change,
     )
@@ -211,8 +223,17 @@ def signup_donor(
     shop_name: str = "",
     address: str = "",
     postal_code: str = "",
+    council_id: int | None = None,
 ) -> User:
-    """후원자가 직접 가입한다. 숫자 4자리를 본인이 정하므로 전달할 것이 없다."""
+    """후원자가 직접 가입한다. 숫자 4자리를 본인이 정하므로 전달할 것이 없다.
+
+    어느 협의체로 가입하는지는 들어온 주소가 정한다 (협의체별 전용 주소). 주소에
+    협의체가 없으면 파일럿 협의체다 — 가입 화면이 하나뿐인 지금의 길이다.
+    """
+    from app import tenancy
+
+    if council_id is None:
+        council_id = tenancy.default(db).id
     name, digits = _prepare_donor(db, name, phone)
     if pin != confirm:
         raise AccountError("숫자 4자리 두 칸이 서로 다릅니다.")
@@ -220,7 +241,7 @@ def signup_donor(
     if problem:
         raise AccountError(problem)
 
-    donor = _new_donor(db, name, digits, pin, must_change=False)
+    donor = _new_donor(db, name, digits, pin, must_change=False, council_id=council_id)
     _attach_shop(db, donor, shop_name, address, postal_code)
     log_event(db, donor, "signup", donor, "후원자 직접 가입")
     db.commit()
@@ -244,7 +265,8 @@ def register_donor(
     """
     name, digits = _prepare_donor(db, name, phone)
     pin = generate_pin()
-    donor = _new_donor(db, name, digits, pin, must_change=True)
+    # 대신 등록은 등록하는 위원·운영자의 협의체로 들어간다.
+    donor = _new_donor(db, name, digits, pin, must_change=True, council_id=actor.council_id)
     _attach_shop(db, donor, shop_name, address, postal_code)
     log_event(db, donor, "register", actor, f"{actor.role.tag}가 대신 등록")
     db.commit()
@@ -308,6 +330,7 @@ def _attach_shop(
     db.add(
         Shop(
             owner_id=donor.id,
+            council_id=donor.council_id,
             name=name or donor.name,
             address=address or None,
             postal_code=postal or None,
@@ -386,11 +409,12 @@ def unlock_by_manager(db: Session, manager: User, target: User) -> User:
     return target
 
 
-def locked_accounts(db: Session) -> list[User]:
-    """잠긴 계정 — 매니저 화면에 띄운다."""
-    return list(
-        db.scalars(select(User).where(User.locked_at.is_not(None)).order_by(User.locked_at)).all()
-    )
+def locked_accounts(db: Session, viewer: User) -> list[User]:
+    """잠긴 계정 — 매니저 화면에 띄운다. 자기 협의체 것만 보인다."""
+    from app import tenancy
+
+    stmt = select(User).where(User.locked_at.is_not(None)).order_by(User.locked_at)
+    return list(db.scalars(tenancy.scoped(stmt, User, viewer)).all())
 
 
 def approve_donor(db: Session, manager: User, donor: User) -> User:

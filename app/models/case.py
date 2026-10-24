@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, CaseStatus, TimestampMixin
+from app.models.base import Base, CaseStatus, CouncilScoped, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.identity import CaseIdentity
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-class Case(Base, TimestampMixin):
+class Case(Base, CouncilScoped, TimestampMixin):
     """위원이 발굴한 '필요'.
 
     ⚠️ 이 테이블에는 식별정보를 절대 넣지 않는다.
@@ -27,11 +27,15 @@ class Case(Base, TimestampMixin):
     """
 
     __tablename__ = "case"
+    # 코드는 협의체 안에서만 유일하다. 전역 유일로 두면 선부3동이 "선부3동 A가정" 을
+    # 쓰고 있을 때 다른 동에서 같은 코드를 못 쓰게 되고, 그 충돌 메시지가 다른 협의체에
+    # 무엇이 있는지를 알려 준다 — 경계가 오류 문구로 새는 길이다.
+    __table_args__ = (UniqueConstraint("council_id", "code", name="uq_case_council_code"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
     # 비식별 코드 — 화면에 노출되는 유일한 호칭. 예: "선부3동 A가정"
-    code: Mapped[str] = mapped_column(String(60), unique=True, index=True)
+    code: Mapped[str] = mapped_column(String(60), index=True)
 
     need_summary: Mapped[str] = mapped_column(String(160))          # "식료품 시급"
     situation_note: Mapped[str | None] = mapped_column(Text)        # "가장 실직 · 4인 가족"

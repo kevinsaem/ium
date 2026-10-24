@@ -37,14 +37,16 @@ def test_approval_puts_the_donors_offers_in_front_of_members(db, seeded):
         db, seeded["member1"], name="새사장", phone="010-7777-0001", shop_name="새가게"
     )
     shop = db.scalar(select(Shop).where(Shop.owner_id == donor.id))
-    offer = Offer(shop_id=shop.id, title="라면 20박스", kind=OfferKind.GOODS)
+    offer = Offer(
+        council_id=shop.council_id, shop_id=shop.id, title="라면 20박스", kind=OfferKind.GOODS
+    )
     db.add(offer)
     db.commit()
 
-    assert offer.id not in [o.id for o in matching.open_offers_for_members(db)]
+    assert offer.id not in [o.id for o in matching.open_offers_for_members(db, seeded["member1"])]
 
     accounts.approve_donor(db, seeded["member1"], donor)
-    assert offer.id in [o.id for o in matching.open_offers_for_members(db)]
+    assert offer.id in [o.id for o in matching.open_offers_for_members(db, seeded["member1"])]
 
 
 def test_members_cannot_match_an_unapproved_donors_offer(db, seeded):
@@ -53,7 +55,9 @@ def test_members_cannot_match_an_unapproved_donors_offer(db, seeded):
         db, seeded["member1"], name="새사장", phone="010-7777-0001", shop_name="새가게"
     )
     shop = db.scalar(select(Shop).where(Shop.owner_id == donor.id))
-    offer = Offer(shop_id=shop.id, title="라면 20박스", kind=OfferKind.GOODS)
+    offer = Offer(
+        council_id=shop.council_id, shop_id=shop.id, title="라면 20박스", kind=OfferKind.GOODS
+    )
     db.add(offer)
     db.commit()
 

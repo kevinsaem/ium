@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app.models import Offer, OfferStatus, Role, User
 from app.security import hash_password
+from tests.helpers import pilot_id
 
 
 def _login(client, email: str) -> None:
@@ -45,7 +46,7 @@ def test_missing_shop_message_reaches_the_donor(db, seeded, client):
     """가게 없이 나눔글을 올리려 할 때 — detail 문구가 그대로 화면에 떠야 한다."""
     donor = User(
         email="noshop@ium.test", password_hash=hash_password("ium1234"),
-        name="가게없음", role=Role.DONOR,
+        name="가게없음", role=Role.DONOR, council_id=pilot_id(db),
     )
     db.add(donor)
     db.commit()
@@ -132,7 +133,7 @@ def test_non_numeric_walk_minutes_is_guided_not_dropped(db, seeded, client):
 
     owner = User(
         email="newshop@ium.test", password_hash=hash_password("ium1234"),
-        name="새가게", role=Role.DONOR,
+        name="새가게", role=Role.DONOR, council_id=pilot_id(db),
     )
     db.add(owner)
     db.commit()
@@ -152,7 +153,7 @@ def test_out_of_range_walk_minutes_is_refused(db, seeded, client):
 
     owner = User(
         email="newshop2@ium.test", password_hash=hash_password("ium1234"),
-        name="새가게", role=Role.DONOR,
+        name="새가게", role=Role.DONOR, council_id=pilot_id(db),
     )
     db.add(owner)
     db.commit()
@@ -173,7 +174,7 @@ def test_blank_walk_minutes_still_means_unknown(db, seeded, client):
 
     owner = User(
         email="newshop3@ium.test", password_hash=hash_password("ium1234"),
-        name="새가게", role=Role.DONOR,
+        name="새가게", role=Role.DONOR, council_id=pilot_id(db),
     )
     db.add(owner)
     db.commit()
@@ -219,7 +220,7 @@ def test_form_limits_come_from_the_server(db, seeded, client):
     # 가게 등록 폼은 아직 가게가 없는 후원자에게만 보인다
     owner = User(
         email="formcheck@ium.test", password_hash=hash_password("ium1234"),
-        name="새가게", role=Role.DONOR,
+        name="새가게", role=Role.DONOR, council_id=pilot_id(db),
     )
     db.add(owner)
     db.commit()

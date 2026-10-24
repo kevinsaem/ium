@@ -56,6 +56,19 @@ def tabs_for(user: User) -> list[dict[str, str]]:
 HOME: dict[Role, str] = {Role.DONOR: "/donor", Role.MEMBER: "/member", Role.OFFICE: "/office"}
 
 
+def dong_of(user: "User | None") -> str:
+    """화면에 띄울 동 이름.
+
+    협의체가 여러 개가 되면서 "선부3동" 은 설정값이 아니라 그 사람이 속한 협의체의
+    속성이 됐다. settings.dong 으로 남겨 두면 선부2동 위원 화면에 선부3동이 적힌다.
+
+    로그인하지 않은 화면(로그인·가입)은 아직 협의체를 알 수 없어 설정값으로 떨어진다.
+    협의체별 전용 주소(/c/<slug>/)가 붙으면 그 주소에서 읽는다.
+    """
+    council = getattr(user, "council", None)
+    return council.dong if council is not None else settings.dong
+
+
 def render(
     request: Request, template: str, user: User, active_tab: str, **ctx: Any
 ):
@@ -65,6 +78,8 @@ def render(
         template,
         {
             "user": user,
+            "council": getattr(user, "council", None),
+            "dong": dong_of(user),
             "tabs": tabs_for(user),
             "active_tab": active_tab,
             "flash": flash,

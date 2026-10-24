@@ -14,7 +14,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from app import identity_service, matching
+from app import identity_service, matching, tenancy
 from app.config import settings
 from app.db import SessionLocal, engine, upgrade_to_head
 from app.icons import KIND_ICON
@@ -90,17 +90,21 @@ def seed() -> None:
             print("이미 데이터가 있습니다. 초기화하려면 --reset 을 붙여 실행하세요.")
             return
 
+        # 협의체는 마이그레이션이 넣어 둔다. 시드는 그 협의체 안에 자료를 채운다.
+        council = tenancy.default(db)
+        cid = council.id
+
         office = User(
             email="office@ium.test", password_hash=hash_password(PASSWORD),
-            name="협의체 운영자", role=Role.OFFICE,
+            name="협의체 운영자", role=Role.OFFICE, council_id=cid,
         )
         member1 = User(
             email="member1@ium.test", password_hash=hash_password(PASSWORD),
-            name="이관희 위원", role=Role.MEMBER, is_manager=True, appointed_note="2026년 위촉",
+            name="이관희 위원", role=Role.MEMBER, council_id=cid, is_manager=True, appointed_note="2026년 위촉",
         )
         member2 = User(
             email="member2@ium.test", password_hash=hash_password(PASSWORD),
-            name="정미영 위원", role=Role.MEMBER, appointed_note="2026년 위촉",
+            name="정미영 위원", role=Role.MEMBER, council_id=cid, appointed_note="2026년 위촉",
         )
         db.add_all([office, member1, member2])
         db.flush()
@@ -109,13 +113,14 @@ def seed() -> None:
         for name, phone, shop_name, category, walk, certified, address, postal in DONORS:
             donor = User(
                 phone=phone, password_hash=hash_password(DONOR_PIN), name=name, role=Role.DONOR,
+                council_id=cid,
                 # 시연 데이터는 승인을 마친 상태로 둔다. 승인 대기 화면은 아래에서 한 곳만 남긴다.
                 approved_at=datetime.now(timezone.utc),
             )
             db.add(donor)
             db.flush()
             shop = Shop(
-                owner_id=donor.id, name=shop_name, category=category, walk_minutes=walk,
+                council_id=cid, owner_id=donor.id, name=shop_name, category=category, walk_minutes=walk,
                 address=address, postal_code=postal,
                 is_certified=certified,
                 certified_by_id=office.id if certified else None,
@@ -128,7 +133,7 @@ def seed() -> None:
         offers: dict[str, Offer] = {}
         for shop_name, title, kind, icon, qty, delivery in OFFERS:
             offer = Offer(
-                shop_id=shops[shop_name].id, title=title, kind=kind,
+                council_id=cid, shop_id=shops[shop_name].id, title=title, kind=kind,
                 icon=icon or KIND_ICON.get(kind.value, "bag"),
                 quantity_note=qty, delivery=delivery,
                 # 시연 데이터는 운영팀 승인을 마친 상태로 둔다. 승인 대기 화면은
@@ -142,7 +147,7 @@ def seed() -> None:
         cases: list[Case] = []
         for code, need, note, size, urgent, identity in CASES:
             case = Case(
-                code=code, need_summary=need, situation_note=note, household_size=size,
+                council_id=cid, code=code, need_summary=need, situation_note=note, household_size=size,
                 is_urgent=urgent, member_id=member1.id,
             )
             db.add(case)
@@ -174,17 +179,17 @@ def seed() -> None:
         # 승인 대기 후원자 한 명을 남겨 둔다 — 매니저 승인 화면을 바로 볼 수 있게 (안건 10).
         waiting = User(
             phone="01010000009", password_hash=hash_password(DONOR_PIN),
-            name="신규사장", role=Role.DONOR,
+            name="신규사장", role=Role.DONOR, council_id=cid,
         )
         db.add(waiting)
         db.flush()
         db.add(Shop(
-            owner_id=waiting.id, name="새봄반찬", category="반찬", walk_minutes=5,
+            council_id=cid, owner_id=waiting.id, name="새봄반찬", category="반찬", walk_minutes=5,
             address="안산시 단원구 선부동 909-9", postal_code="15240",
         ))
         db.commit()
 
-        print("시드 완료.")
+        print(f"시드 완료. 협의체: {council.label} (/{council.slug})")
         print(f"  운영자  office@ium.test (비밀번호 {PASSWORD})")
         print(f"  위원    member1@ium.test / member2@ium.test (비밀번호 {PASSWORD})")
         print(f"  후원자  010-1000-0001 외 4명 (숫자 {DONOR_PIN})")

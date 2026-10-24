@@ -5,14 +5,21 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, DeliveryMethod, OfferKind, OfferStatus, TimestampMixin
+from app.models.base import (
+    Base,
+    CouncilScoped,
+    DeliveryMethod,
+    OfferKind,
+    OfferStatus,
+    TimestampMixin,
+)
 
 if TYPE_CHECKING:
     from app.models.match import Match
     from app.models.user import Shop
 
 
-class Offer(Base, TimestampMixin):
+class Offer(Base, CouncilScoped, TimestampMixin):
     """후원자가 '내놓기(Push)'로 올린 나눔글.
 
     승인된 후원자가 올린 글은 바로 위원의 매칭 후보에 오른다 (위원회 결정, 안건 10).

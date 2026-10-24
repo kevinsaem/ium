@@ -11,6 +11,7 @@ from sqlalchemy import select
 from app import matching
 from app.models import Case, CaseStatus, Offer, OfferStatus, Role, Shop, User
 from app.security import hash_password
+from tests.helpers import pilot_id
 
 
 def _login(client, email: str) -> None:
@@ -89,11 +90,11 @@ def test_donor_cannot_close_another_donors_offer(db, seeded, client):
 
     other = User(
         email="other@ium.test", password_hash=hash_password("ium1234"),
-        name="옆집 사장", role=Role.DONOR,
+        name="옆집 사장", role=Role.DONOR, council_id=pilot_id(db),
     )
     db.add(other)
     db.flush()
-    db.add(Shop(owner_id=other.id, name="옆집분식"))
+    db.add(Shop(council_id=other.council_id, owner_id=other.id, name="옆집분식"))
     db.commit()
 
     _login(client, "other@ium.test")

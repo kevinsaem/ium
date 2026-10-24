@@ -7,9 +7,10 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, false, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, Role, TimestampMixin
+from app.models.base import Base, CouncilScoped, Role, TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.council import Council
     from app.models.offer import Offer
 
 
@@ -30,6 +31,10 @@ class User(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(80))
     phone: Mapped[str | None] = mapped_column(String(40), unique=True, index=True, default=None)
     role: Mapped[Role] = mapped_column(Enum(Role, native_enum=False), index=True)
+    # 소속 협의체. 슈퍼 관리자는 경계 밖이라 비어 있다.
+    council_id: Mapped[int | None] = mapped_column(
+        ForeignKey("council.id"), index=True, default=None
+    )
     dong: Mapped[str] = mapped_column(String(40), default="선부3동")
 
     # 위원 위촉 관리 (운영자가 승인)
@@ -57,6 +62,9 @@ class User(Base, TimestampMixin):
     approved_by: Mapped["User | None"] = relationship(
         foreign_keys=[approved_by_id], remote_side="User.id"
     )
+    council: Mapped["Council | None"] = relationship(
+        back_populates="members", foreign_keys=[council_id]
+    )
 
     # Shop 은 user 를 두 번 참조한다(owner_id, certified_by_id). 소유 관계만 연결한다.
     shop: Mapped["Shop | None"] = relationship(
@@ -74,7 +82,7 @@ class User(Base, TimestampMixin):
         return f"<User {self.id} {self.role.value} {self.name}>"
 
 
-class Shop(Base, TimestampMixin):
+class Shop(Base, CouncilScoped, TimestampMixin):
     """나눔가게. 운영자가 인증 배지를 승인하며, 이것이 '관공서 신뢰 보증'의 실체다."""
 
     __tablename__ = "shop"

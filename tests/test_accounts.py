@@ -24,6 +24,7 @@ from app.security import (
     validate_new_password,
     verify_password,
 )
+from tests.helpers import pilot_id
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -477,7 +478,8 @@ def test_seeded_accounts_are_not_forced_to_change(db, seeded, client):
 
 def test_new_user_defaults_to_no_forced_change(db):
     user = User(
-        email="plain@ium.test", password_hash=hash_password("ium1234"), name="평범", role=Role.DONOR
+        email="plain@ium.test", password_hash=hash_password("ium1234"), name="평범",
+        role=Role.DONOR, council_id=pilot_id(db),
     )
     db.add(user)
     db.commit()

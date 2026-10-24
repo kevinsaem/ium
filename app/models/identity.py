@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import Base, CouncilScoped, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.case import Case
@@ -48,7 +48,7 @@ class CaseIdentity(Base, TimestampMixin):
         return f"<CaseIdentity case_id={self.case_id} (encrypted)>"
 
 
-class IdentityAccessLog(Base):
+class IdentityAccessLog(Base, CouncilScoped):
     """식별정보 접근 감사 로그.
 
     누가·언제·어느 케이스를·왜 열람했는지 남긴다. 감사나 민원이 들어왔을 때

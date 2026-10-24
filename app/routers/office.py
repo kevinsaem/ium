@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app import accounts, identity_service, matching, pilot, retention
+from app import accounts, identity_service, matching, pilot, rendering, retention, tenancy
 from app.config import settings
 from app.db import get_db
 from app.deps import require_role
@@ -45,38 +45,46 @@ office_dep = require_role(Role.OFFICE)
 
 @router.get("")
 def dashboard(request: Request, user: User = Depends(office_dep), db: Session = Depends(get_db)):
-    policy = retention.current(db)
-    matches = list(db.scalars(select(Match)).all())
+    policy = retention.current(db, user.council_id)
+    matches = list(db.scalars(tenancy.scoped(select(Match), Match, user)).all())
     year, month = current_month()
     month_delivered = sum(
         1 for m in matches if m.status is MatchStatus.DELIVERED and in_month(m.delivered_at, year, month)
     )
 
     stats = {
-        "certified_shops": db.scalar(select(func.count()).select_from(Shop).where(Shop.is_certified)),
+        "certified_shops": db.scalar(
+            tenancy.scoped(select(func.count()).select_from(Shop), Shop, user).where(
+                Shop.is_certified
+            )
+        ),
         "active_members": db.scalar(
-            select(func.count()).select_from(User).where(User.role == Role.MEMBER, User.is_active)
+            tenancy.scoped(select(func.count()).select_from(User), User, user).where(
+                User.role == Role.MEMBER, User.is_active
+            )
         ),
         "total_matches": len(matches),
         "month_delivered": month_delivered,
         "open_cases": db.scalar(
-            select(func.count()).select_from(Case).where(Case.status == CaseStatus.OPEN)
+            tenancy.scoped(select(func.count()).select_from(Case), Case, user).where(
+                Case.status == CaseStatus.OPEN
+            )
         ),
         "urgent_cases": db.scalar(
-            select(func.count())
-            .select_from(Case)
-            .where(Case.is_urgent, Case.status != CaseStatus.CLOSED)
+            tenancy.scoped(select(func.count()).select_from(Case), Case, user).where(
+                Case.is_urgent, Case.status != CaseStatus.CLOSED
+            )
         ),
     }
 
     # 위원회 결정(안건 04): 단계별로 센다. 기간이 설정돼 있으면 그 기간만.
     pilot_window = pilot.window(policy)
-    funnel = pilot.funnel(db, pilot_window)
+    funnel = pilot.funnel(db, pilot_window, user)
 
     # 운영자는 '열람했다는 사실'만 본다. 열람된 내용은 이 화면에 오지 않는다.
     audit_logs = list(
         db.scalars(
-            select(IdentityAccessLog)
+            tenancy.scoped(select(IdentityAccessLog), IdentityAccessLog, user)
             .options(selectinload(IdentityAccessLog.actor), selectinload(IdentityAccessLog.case))
             .order_by(IdentityAccessLog.accessed_at.desc(), IdentityAccessLog.id.desc())
             .limit(5)
@@ -84,7 +92,7 @@ def dashboard(request: Request, user: User = Depends(office_dep), db: Session = 
     )
 
     # 기한이 지났는데 식별정보가 남은 케이스. 운영자는 건수만 본다 — 파기는 담당 위원 몫이다.
-    overdue = retention.expired(db, policy.identity_retention_months)
+    overdue = retention.expired(db, policy.identity_retention_months, viewer=user)
 
     return render(
         request,
@@ -209,18 +217,27 @@ def report(
     """
     year, mon = parse_month(month)
     cases = list(
-        db.scalars(select(Case).options(selectinload(Case.member), selectinload(Case.identity))).all()
+        db.scalars(
+            tenancy.scoped(select(Case), Case, user).options(
+                selectinload(Case.member), selectinload(Case.identity)
+            )
+        ).all()
     )
     matches = list(
         db.scalars(
-            select(Match).options(
+            tenancy.scoped(select(Match), Match, user).options(
                 selectinload(Match.case).selectinload(Case.member),
                 selectinload(Match.offer).selectinload(Offer.shop),
             )
         ).all()
     )
     monthly = build_monthly_report(
-        cases, matches, year, mon, [f"작성: {settings.dong} 지역사회보장협의체"], by_member=True
+        cases,
+        matches,
+        year,
+        mon,
+        [f"작성: {rendering.dong_of(user)} 지역사회보장협의체"],
+        by_member=True,
     )
 
     # 긴급 먼저, 그다음 오래 묵은 순. 전달은 끝났는데 식별정보가 남은 케이스는 파기 대기다.
@@ -298,8 +315,10 @@ def audit_log(
     if action_value:
         conditions.append(IdentityAccessLog.action == action_value)
 
-    count_stmt = select(func.count()).select_from(IdentityAccessLog)
-    list_stmt = select(IdentityAccessLog)
+    count_stmt = tenancy.scoped(
+        select(func.count()).select_from(IdentityAccessLog), IdentityAccessLog, user
+    )
+    list_stmt = tenancy.scoped(select(IdentityAccessLog), IdentityAccessLog, user)
     for condition in conditions:
         count_stmt = count_stmt.where(condition)
         list_stmt = list_stmt.where(condition)
@@ -342,7 +361,7 @@ def audit_log(
         month_options=month_options,
         actors=list(
             db.scalars(
-                select(User)
+                tenancy.scoped(select(User), User, user)
                 .where(User.role.in_([Role.MEMBER, Role.OFFICE]))
                 .order_by(User.role, User.name)
             ).all()
@@ -356,18 +375,26 @@ def audit_log(
 @router.get("/members")
 def members(request: Request, user: User = Depends(office_dep), db: Session = Depends(get_db)):
     member_rows = list(
-        db.scalars(select(User).where(User.role == Role.MEMBER).order_by(User.name)).all()
+        db.scalars(
+            tenancy.scoped(select(User), User, user).where(User.role == Role.MEMBER).order_by(User.name)
+        ).all()
     )
     donor_rows = list(
-        db.scalars(select(User).where(User.role == Role.DONOR).order_by(User.name)).all()
+        db.scalars(
+            tenancy.scoped(select(User), User, user).where(User.role == Role.DONOR).order_by(User.name)
+        ).all()
     )
     counts = dict(
-        db.execute(select(Case.member_id, func.count(Case.id)).group_by(Case.member_id)).all()
+        db.execute(
+            tenancy.scoped(
+                select(Case.member_id, func.count(Case.id)), Case, user
+            ).group_by(Case.member_id)
+        ).all()
     )
     # 위촉 해제의 실제 걸림돌은 '아직 살아 있는 케이스'다. 종결된 건 인계할 필요가 없다.
     open_counts = dict(
         db.execute(
-            select(Case.member_id, func.count(Case.id))
+            tenancy.scoped(select(Case.member_id, func.count(Case.id)), Case, user)
             .where(Case.status != CaseStatus.CLOSED)
             .group_by(Case.member_id)
         ).all()
@@ -539,9 +566,9 @@ def toggle_member(
         # 담당 케이스를 남긴 채 해제하면 그 가정은 아무도 손댈 수 없게 된다. 담당 위원만
         # 열 수 있는 식별정보도, 진행 중인 매칭도 함께 잠긴다.
         live = db.scalar(
-            select(func.count())
-            .select_from(Case)
-            .where(Case.member_id == member.id, Case.status != CaseStatus.CLOSED)
+            tenancy.scoped(select(func.count()).select_from(Case), Case, user).where(
+                Case.member_id == member.id, Case.status != CaseStatus.CLOSED
+            )
         )
         if live:
             flash(
@@ -587,7 +614,9 @@ def handover_cases(
 
     cases = list(
         db.scalars(
-            select(Case).where(Case.member_id == member.id, Case.status != CaseStatus.CLOSED)
+            tenancy.scoped(select(Case), Case, user).where(
+                Case.member_id == member.id, Case.status != CaseStatus.CLOSED
+            )
         ).all()
     )
     if not cases:
@@ -608,9 +637,13 @@ def handover_cases(
 
 @router.get("/badges")
 def badges(request: Request, user: User = Depends(office_dep), db: Session = Depends(get_db)):
-    shops = list(db.scalars(select(Shop).order_by(Shop.name)).all())
+    shops = list(db.scalars(tenancy.scoped(select(Shop), Shop, user).order_by(Shop.name)).all())
     offer_counts = dict(
-        db.execute(select(Offer.shop_id, func.count(Offer.id)).group_by(Offer.shop_id)).all()
+        db.execute(
+            tenancy.scoped(select(Offer.shop_id, func.count(Offer.id)), Offer, user).group_by(
+                Offer.shop_id
+            )
+        ).all()
     )
     return render(
         request,

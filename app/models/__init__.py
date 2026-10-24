@@ -9,6 +9,7 @@ from app.models.base import (
 )
 from app.models.account import AccountEvent
 from app.models.case import Case
+from app.models.council import Council
 from app.models.device import TrustedDevice
 from app.models.donor_note import DonorNote
 from app.models.thanks import ThanksMessage
@@ -23,4 +24,5 @@ __all__ = [
     "CaseStatus", "MatchStatus",
     "User", "Shop", "Offer", "Case", "CaseIdentity", "IdentityAccessLog",
     "Match", "ThanksMessage", "AccountEvent", "Policy", "TrustedDevice", "DonorNote",
+    "Council",
 ]

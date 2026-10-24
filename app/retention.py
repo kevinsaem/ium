@@ -16,7 +16,7 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Case, CaseStatus, Policy, User
+from app.models import Case, CaseStatus, Council, Policy, User
 from app.models.policy import (
     DEFAULT_RETENTION_MONTHS,
     MAX_RETENTION_MONTHS,
@@ -29,11 +29,26 @@ class PolicyError(ValueError):
     """사람에게 그대로 보여 줄 수 있는 문장을 담는다."""
 
 
-def current(db: Session) -> Policy:
-    """정책 한 행을 돌려준다. 없으면 기본값으로 만든다."""
-    policy = db.scalar(select(Policy).where(Policy.id == 1))
+def current(db: Session, council: Council | int | None = None) -> Policy:
+    """협의체의 정책 한 행을 돌려준다. 없으면 기본값으로 만든다.
+
+    협의체를 안 넘기면 파일럿 협의체(선부3동)로 본다. 화면에서 협의체를 고르는 길이
+    아직 없는 자리가 남아 있어서다 — 그 자리들이 전부 협의체를 넘기게 되면 기본값을
+    없앤다. 기본값을 지금 없애면 '정책이 없는 협의체'와 '협의체를 못 넘긴 호출'이
+    같은 오류로 보여, 어느 쪽인지 알 수 없다.
+    """
+    from app import tenancy
+
+    if council is None:
+        council_id = tenancy.default(db).id
+    else:
+        council_id = council if isinstance(council, int) else council.id
+
+    policy = db.scalar(select(Policy).where(Policy.council_id == council_id))
     if policy is None:
-        policy = Policy(id=1, identity_retention_months=DEFAULT_RETENTION_MONTHS)
+        policy = Policy(
+            council_id=council_id, identity_retention_months=DEFAULT_RETENTION_MONTHS
+        )
         db.add(policy)
         db.commit()
         db.refresh(policy)
@@ -111,10 +126,21 @@ def status_for(case: Case, months: int, today: date | None = None) -> RetentionS
     )
 
 
-def expired(db: Session, months: int, today: date | None = None) -> list[Case]:
-    """기한이 지났는데 식별정보가 남아 있는 케이스."""
+def expired(
+    db: Session, months: int, today: date | None = None, viewer: User | None = None
+) -> list[Case]:
+    """기한이 지났는데 식별정보가 남아 있는 케이스.
+
+    viewer 를 넘기면 그 사람의 협의체 것만 센다. 일괄 파기 명령(app/purge_expired.py)은
+    서버에서 전체를 훑어야 하므로 넘기지 않는다.
+    """
+    from app import tenancy
+
     today = today or datetime.now(KST).date()
-    closed = db.scalars(select(Case).where(Case.status == CaseStatus.CLOSED)).all()
+    stmt = select(Case).where(Case.status == CaseStatus.CLOSED)
+    if viewer is not None:
+        stmt = tenancy.scoped(stmt, Case, viewer)
+    closed = db.scalars(stmt).all()
     return [
         c
         for c in closed

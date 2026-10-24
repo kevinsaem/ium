@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app import accounts, identity_service, matching, retention
+from app import accounts, identity_service, matching, retention, tenancy
 from app.db import get_db
 from app.deps import require_manager, require_role
 from app.forms import HOUSEHOLD_SIZE, parse_optional_int
@@ -39,6 +39,7 @@ def _own_case(db: Session, case_id: int, user: User) -> Case:
     case = db.get(Case, case_id)
     if case is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="케이스를 찾을 수 없습니다.")
+    tenancy.assert_same(user, case)
     if case.member_id != user.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="담당 위원만 접근할 수 있습니다.")
     return case
@@ -53,6 +54,7 @@ def _own_match(db: Session, match_id: int, user: User) -> Match:
     match = db.get(Match, match_id)
     if match is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="매칭을 찾을 수 없습니다.")
+    tenancy.assert_same(user, match)
     if match.case.member_id != user.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="담당 위원만 처리할 수 있습니다.")
     return match
@@ -62,7 +64,7 @@ def _own_match(db: Session, match_id: int, user: User) -> Match:
 def cases(request: Request, user: User = Depends(member_dep), db: Session = Depends(get_db)):
     rows = list(
         db.scalars(
-            select(Case)
+            tenancy.scoped(select(Case), Case, user)
             .where(Case.member_id == user.id)
             .order_by(Case.is_urgent.desc(), Case.created_at.desc())
         ).all()
@@ -84,11 +86,15 @@ def create_case(
     db: Session = Depends(get_db),
 ):
     code = code.strip()
-    if db.scalar(select(Case).where(Case.code == code)) is not None:
+    duplicate = db.scalar(
+        select(Case).where(Case.code == code, Case.council_id == user.council_id)
+    )
+    if duplicate is not None:
         flash(request, f"'{code}' 코드는 이미 사용 중입니다. 다른 코드를 쓰세요.")
         return RedirectResponse("/member", status_code=303)
 
     case = Case(
+        council_id=user.council_id,
         code=code,
         need_summary=need_summary.strip(),
         situation_note=situation_note.strip() or None,
@@ -114,10 +120,10 @@ def _case_detail(
     identity 는 열람 요청(POST reveal)이 방금 복호화한 값일 때만 채워진다. 저장하지 않고
     이 응답 하나에만 실어 보낸다 — 세션에 담으면 쿠키를 타고 브라우저에 남는다.
     """
-    open_offers = matching.open_offers_for_members(db)
+    open_offers = matching.open_offers_for_members(db, user)
     logs = list(
         db.scalars(
-            select(IdentityAccessLog)
+            tenancy.scoped(select(IdentityAccessLog), IdentityAccessLog, user)
             .where(IdentityAccessLog.case_id == case.id)
             .order_by(IdentityAccessLog.accessed_at.desc())
             .limit(10)
@@ -308,7 +314,11 @@ def propose_match(
 
 @router.get("/matches")
 def match_board(request: Request, user: User = Depends(member_dep), db: Session = Depends(get_db)):
-    all_matches = list(db.scalars(select(Match).order_by(Match.created_at.desc())).all())
+    all_matches = list(
+        db.scalars(
+            tenancy.scoped(select(Match), Match, user).order_by(Match.created_at.desc())
+        ).all()
+    )
     return render(
         request,
         "member/match.html",
@@ -380,7 +390,7 @@ def donors(request: Request, user: User = Depends(member_dep), db: Session = Dep
     """
     rows = list(
         db.scalars(
-            select(User)
+            tenancy.scoped(select(User), User, user)
             .options(selectinload(User.shop), selectinload(User.approved_by))
             .where(User.role == Role.DONOR)
             .order_by(User.approved_at.is_not(None), User.name)
@@ -409,6 +419,7 @@ def donor_detail(
     donor = db.get(User, donor_id)
     if donor is None or donor.role is not Role.DONOR:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="후원자를 찾을 수 없습니다.")
+    tenancy.assert_same(user, donor)
 
     notes = list(
         db.scalars(
@@ -420,7 +431,10 @@ def donor_detail(
     )
     offers = list(
         db.scalars(
-            select(Offer).join(Shop).where(Shop.owner_id == donor.id).order_by(Offer.created_at.desc())
+            tenancy.scoped(select(Offer), Offer, user)
+            .join(Shop)
+            .where(Shop.owner_id == donor.id)
+            .order_by(Offer.created_at.desc())
         ).all()
     ) if donor.shop else []
 
@@ -542,7 +556,7 @@ def manage(request: Request, user: User = Depends(manager_dep), db: Session = De
         "member/manage.html",
         user,
         "manage",
-        locked=accounts.locked_accounts(db),
+        locked=accounts.locked_accounts(db, user),
         policy=retention.current(db),
         max_failed=accounts.MAX_FAILED_LOGINS,
     )
@@ -592,10 +606,18 @@ def update_contact(
 def report(request: Request, user: User = Depends(member_dep), db: Session = Depends(get_db)):
     """월간 활동 보고서 초안 — 비식별 코드만으로 생성된다. 계산은 동 전체 보고서와 같다."""
     year, month = current_month()
-    my_cases = list(db.scalars(select(Case).where(Case.member_id == user.id)).all())
+    my_cases = list(
+        db.scalars(tenancy.scoped(select(Case), Case, user).where(Case.member_id == user.id)).all()
+    )
     case_ids = [c.id for c in my_cases]
     matches = (
-        list(db.scalars(select(Match).where(Match.case_id.in_(case_ids))).all()) if case_ids else []
+        list(
+            db.scalars(
+                tenancy.scoped(select(Match), Match, user).where(Match.case_id.in_(case_ids))
+            ).all()
+        )
+        if case_ids
+        else []
     )
     monthly = build_monthly_report(my_cases, matches, year, month, [f"담당 위원: {user.name}"])
 

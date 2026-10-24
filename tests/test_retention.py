@@ -25,6 +25,7 @@ from sqlalchemy import select
 from app import identity_service, retention
 from app.models import Case, CaseIdentity, CaseStatus, IdentityAccessLog, Policy
 from app.models.policy import DEFAULT_RETENTION_MONTHS
+from tests.helpers import pilot_id
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -372,7 +373,10 @@ def test_identity_cannot_be_saved_without_consent(db, seeded, client):
     """동의 없이 저장할 수 있게 두면 근거 없는 보관이 생긴다."""
     from app.models import CaseIdentity
 
-    case = Case(code="선부3동 X가정", need_summary="반찬", member_id=seeded["member1"].id)
+    case = Case(
+        council_id=pilot_id(db), code="선부3동 X가정", need_summary="반찬",
+        member_id=seeded["member1"].id,
+    )
     db.add(case)
     db.commit()
 
@@ -390,7 +394,10 @@ def test_identity_cannot_be_saved_without_consent(db, seeded, client):
 def test_identity_saves_once_consent_is_recorded(db, seeded, client):
     from app.models import CaseIdentity
 
-    case = Case(code="선부3동 Y가정", need_summary="반찬", member_id=seeded["member1"].id)
+    case = Case(
+        council_id=pilot_id(db), code="선부3동 Y가정", need_summary="반찬",
+        member_id=seeded["member1"].id,
+    )
     db.add(case)
     db.commit()
 

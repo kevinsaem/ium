@@ -3,10 +3,10 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, func, text
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base
+from app.models.base import Base, CouncilScoped
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -31,8 +31,8 @@ MAX_RETENTION_MONTHS = 60
 DEFAULT_PILOT_MONTHS = 1
 
 
-class Policy(Base):
-    """운영자가 화면에서 바꾸는 운영 정책. 한 행만 쓴다.
+class Policy(Base, CouncilScoped):
+    """운영자가 화면에서 바꾸는 운영 정책. 협의체마다 한 행이다.
 
     app/config.py 의 settings 와 역할이 다르다. 그쪽은 배포할 때 정하는 값(키·DB 주소)이라
     운영자가 손댈 수 없고, 이쪽은 협의체가 운영하면서 바꾸는 값이다.
@@ -42,8 +42,10 @@ class Policy(Base):
     """
 
     __tablename__ = "policy"
+    # 협의체마다 정확히 한 행. 두 행이 생기면 어느 쪽이 적용됐는지 알 수 없게 된다.
+    __table_args__ = (UniqueConstraint("council_id", name="uq_policy_council"),)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
     # 케이스 종결 후 식별정보를 며칠까지 보관할지 — 개월 단위
     identity_retention_months: Mapped[int] = mapped_column(

@@ -86,7 +86,10 @@ def test_manager_approves_and_the_shop_enters_the_pool(db, seeded, client):
     donor = _waiting_donor(db)
 
     shop = db.scalar(select(Shop).where(Shop.owner_id == donor.id))
-    offer = Offer(shop_id=shop.id, title="반찬 10인분", kind=db.scalar(select(Offer)).kind)
+    offer = Offer(
+        council_id=shop.council_id, shop_id=shop.id, title="반찬 10인분",
+        kind=db.scalar(select(Offer)).kind,
+    )
     db.add(offer)
     db.commit()
 
@@ -201,7 +204,10 @@ def test_an_unapproved_donors_offer_is_hidden_from_the_feed(db, seeded, client):
     _register(client)
     donor = _waiting_donor(db)
     shop = db.scalar(select(Shop).where(Shop.owner_id == donor.id))
-    db.add(Offer(shop_id=shop.id, title="숨은 나눔", kind=db.scalar(select(Offer)).kind))
+    db.add(Offer(
+        council_id=shop.council_id, shop_id=shop.id, title="숨은 나눔",
+        kind=db.scalar(select(Offer)).kind,
+    ))
     db.commit()
 
     _login(client, "blue@ium.test")

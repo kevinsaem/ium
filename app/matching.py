@@ -35,12 +35,19 @@ def propose(db: Session, case: Case, offer: Offer, member: User, note: str | Non
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, detail="아직 승인되지 않은 후원자의 나눔입니다."
         )
+    if case.council_id != offer.council_id:
+        # 목록은 이미 협의체로 걸러지지만, 주소에 id 를 직접 넣는 길이 있다. 경계를
+        # 넘는 매칭이 한 번이라도 생기면 그 뒤의 지표·보고서가 전부 어긋난다.
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, detail="다른 협의체의 나눔과는 매칭할 수 없습니다."
+        )
     if offer.status is not OfferStatus.OPEN:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="이미 매칭 중이거나 종료된 나눔입니다.")
     if case.status in (CaseStatus.RESOLVED, CaseStatus.CLOSED):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="종결된 케이스입니다.")
 
     match = Match(
+        council_id=case.council_id,
         case_id=case.id,
         offer_id=offer.id,
         proposed_by_id=member.id,
@@ -85,19 +92,20 @@ def cancel(db: Session, match: Match, actor: User, reason: str | None = None) ->
     return match
 
 
-def open_offers_for_members(db: Session):
-    """위원의 매칭 후보 — 승인된 후원자의 '나눔 가능' 글만.
+def open_offers_for_members(db: Session, member: User):
+    """위원의 매칭 후보 — 같은 협의체에서 승인된 후원자의 '나눔 가능' 글만.
 
     이 조건을 화면마다 따로 쓰면 한 곳만 고쳐지고 다른 곳으로 미승인 후원자의 글이 샌다.
+    협의체 조건도 같은 이유로 여기 한 곳에 둔다.
     """
+    from app import tenancy
     from app.models import Shop
 
-    return list(
-        db.scalars(
-            select(Offer)
-            .join(Shop, Offer.shop_id == Shop.id)
-            .join(User, Shop.owner_id == User.id)
-            .where(Offer.status == OfferStatus.OPEN, User.approved_at.is_not(None))
-            .order_by(Offer.created_at.desc())
-        ).all()
+    stmt = (
+        select(Offer)
+        .join(Shop, Offer.shop_id == Shop.id)
+        .join(User, Shop.owner_id == User.id)
+        .where(Offer.status == OfferStatus.OPEN, User.approved_at.is_not(None))
+        .order_by(Offer.created_at.desc())
     )
+    return list(db.scalars(tenancy.scoped(stmt, Offer, member)).all())

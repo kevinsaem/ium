@@ -22,7 +22,7 @@ from app.models import (
     ThanksMessage,
     User,
 )
-from app import matching
+from app import matching, tenancy
 from app.rendering import flash, render
 from app.timeutil import current_month, in_month
 
@@ -38,6 +38,7 @@ def _own_offer(db: Session, offer_id: int, user: User) -> Offer:
     offer = db.get(Offer, offer_id)
     if offer is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="나눔글을 찾을 수 없습니다.")
+    tenancy.assert_same(user, offer)
     if offer.shop.owner_id != user.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="본인이 올린 나눔글만 관리할 수 있습니다.")
     return offer
@@ -45,16 +46,19 @@ def _own_offer(db: Session, offer_id: int, user: User) -> Offer:
 
 @router.get("")
 def feed(request: Request, user: User = Depends(donor_dep), db: Session = Depends(get_db)):
-    """나눔 피드 — 동네 전체의 나눔글. 대상자 정보는 어디에도 없다."""
-    offers = list(
-        db.scalars(
-            select(Offer)
-            .join(Shop, Offer.shop_id == Shop.id)
-            .join(User, Shop.owner_id == User.id)
-            .where(User.approved_at.is_not(None))
-            .order_by(Offer.status, Offer.created_at.desc())
-        ).all()
+    """나눔 피드 — 우리 동 전체의 나눔글. 대상자 정보는 어디에도 없다.
+
+    '동네' 는 후원자가 속한 협의체다. 옆 동 가게의 나눔이 섞이면 후원자는 자기 동네
+    이야기로 읽는데 실제로는 다른 동 일이고, 그걸 보고 가게를 찾아갈 수도 있다.
+    """
+    stmt = (
+        select(Offer)
+        .join(Shop, Offer.shop_id == Shop.id)
+        .join(User, Shop.owner_id == User.id)
+        .where(User.approved_at.is_not(None))
+        .order_by(Offer.status, Offer.created_at.desc())
     )
+    offers = list(db.scalars(tenancy.scoped(stmt, Offer, user)).all())
     return render(request, "donor/feed.html", user, "feed", offers=offers)
 
 
@@ -65,6 +69,7 @@ def offer_detail(
     offer = db.get(Offer, offer_id)
     if offer is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="나눔글을 찾을 수 없습니다.")
+    tenancy.assert_same(user, offer)
 
     thanks: list[ThanksMessage] = []
     if offer.shop.owner_id == user.id:
@@ -106,6 +111,7 @@ def create_shop(
 
     db.add(
         Shop(
+            council_id=user.council_id,
             owner_id=user.id,
             name=name.strip(),
             category=category.strip() or None,
@@ -136,6 +142,7 @@ def create_offer(
     offer_kind = parse_enum(OfferKind, kind, "나눔 종류")
     db.add(
         Offer(
+            council_id=user.council_id,
             shop_id=shop.id,
             title=title.strip(),
             kind=offer_kind,

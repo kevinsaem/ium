@@ -33,7 +33,20 @@ MATRIX: dict[str, dict[str, tuple[Role, ...]]] = {
     "account":        {"read": (Role.OFFICE,),                          "write": (Role.OFFICE,)},
     "account_log":    {"read": (Role.OFFICE,),                          "write": ()},
     "audit_log":      {"read": (Role.OFFICE,),                          "write": ()},
+    # 협의체 개설·승인·전용 주소. 협의체 경계를 넘는 유일한 권한이라 슈퍼 관리자만이다
+    # (2026-10-24 결정). 운영자는 자기 협의체 안의 사람이므로 다른 동을 승인할 수 없다.
+    "council":        {"read": (Role.SUPER,),                           "write": (Role.SUPER,)},
 }
+
+# 🔴 슈퍼 관리자가 식별정보에 없다는 것이 이 표의 핵심이다.
+#
+# 시스템 전체를 관리하는 사람이 당연히 다 볼 수 있다고 생각하기 쉬운데, 이음에서는 아니다.
+# 식별정보를 읽는 사람은 그 가정을 직접 만나는 담당 위원뿐이고, 그 원칙은 협의체가 하나일
+# 때나 백 개일 때나 같다. 협의체를 늘리는 권한과 그 안을 들여다보는 권한은 다른 권한이다.
+_SUPER_NEVER = ("case", "case_identity", "match", "account_log", "audit_log")
+assert all(Role.SUPER not in MATRIX[r]["read"] for r in _SUPER_NEVER), (
+    "슈퍼 관리자에게 협의체 내부 자료 열람을 주면 안 됩니다."
+)
 
 
 # 매니저만 하는 일 (위원회 결정, 안건 10·14·15). 역할이 아니라 위원에게 주는 권한이라

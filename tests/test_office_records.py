@@ -67,7 +67,12 @@ def test_shift_month_crosses_years():
 
 
 def test_office_report_counts_the_whole_dong(db, seeded, client):
-    db.add(Case(code="선부3동 D가정", need_summary="반찬", member_id=seeded["member2"].id))
+    db.add(
+        Case(
+            council_id=seeded["council"].id, code="선부3동 D가정",
+            need_summary="반찬", member_id=seeded["member2"].id,
+        )
+    )
     db.commit()
 
     _login(client, "office@ium.test")
@@ -137,7 +142,10 @@ def test_resolved_case_still_holding_identity_is_flagged(db, seeded, client):
 
 def _add_logs(db, case, actor, n, reason, action="read", when=None):
     for i in range(n):
-        log = IdentityAccessLog(case_id=case.id, actor_id=actor.id, action=action, reason=f"{reason} {i}")
+        log = IdentityAccessLog(
+            council_id=case.council_id, case_id=case.id, actor_id=actor.id,
+            action=action, reason=f"{reason} {i}",
+        )
         if when is not None:
             log.accessed_at = when
         db.add(log)

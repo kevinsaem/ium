@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import DateTime, Enum, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, MatchStatus, TimestampMixin
+from app.models.base import Base, CouncilScoped, MatchStatus, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.case import Case
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-class Match(Base, TimestampMixin):
+class Match(Base, CouncilScoped, TimestampMixin):
     """'필요'(Case) ↔ '나눔'(Offer) 연결. 이음의 핵심 트랜잭션.
 
     승인 단계는 없다. 매니저가 그 후원자를 이미 승인했고, 어느 가정에 보낼지는 그 가정을
