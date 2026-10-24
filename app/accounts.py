@@ -38,6 +38,9 @@ ACTION_LABELS = {
     "create_super": "슈퍼 관리자 계정 생성",
     "create_office": "운영자 계정 생성",
     "issue_manager": "협의체 관리자 발급",
+    "join_member": "위원 초대 코드로 가입",
+    "approve_member": "위원 승인",
+    "reject_member": "위원 승인 거절",
     "issue": "위원 계정 발급",
     "signup": "후원자 직접 가입",
     "register": "후원자 대신 등록",
@@ -182,12 +185,88 @@ def issue_manager(
         password_hash=hash_password(temp),
         must_change_password=True,
         appointed_note=note,
+        # 슈퍼 관리자가 이름과 이메일을 받아 직접 발급했으므로 발급이 곧 승인이다.
+        approved_at=datetime.now(timezone.utc),
+        approved_by_id=actor.id,
     )
     db.add(user)
     db.flush()
     log_event(db, user, "issue_manager", actor, f"{council.label} 관리자")
     db.commit()
     return user, temp
+
+
+def create_pending_member(
+    db: Session, *, council_id: int, name: str, email: str, password: str, note: str | None = None
+) -> User:
+    """초대 코드로 들어온 위원 — 승인 대기 상태로 선다.
+
+    비밀번호를 본인이 정하므로 전달할 임시 값이 없고, must_change_password 도 켜지 않는다.
+    대신 approved_at 이 비어 있어 관리자가 승인하기 전까지는 어느 화면도 열리지 않는다
+    (app/deps.py 의 require_role).
+
+    발급하는 사람(actor)이 없는 유일한 계정 생성 경로다. 그래서 기록의 행위자를 본인으로
+    남긴다 — 후원자 직접 가입과 같다.
+    """
+    name, email = _prepare(db, name, email)
+    problem = validate_new_password(password, email=email)
+    if problem:
+        raise AccountError(problem)
+
+    user = User(
+        email=email,
+        name=name,
+        role=Role.MEMBER,
+        council_id=council_id,
+        password_hash=hash_password(password),
+        must_change_password=False,
+        appointed_note=note,
+    )
+    db.add(user)
+    db.flush()
+    log_event(db, user, "join_member", user, note)
+    db.commit()
+    return user
+
+
+def approve_member(db: Session, manager: User, member: User) -> User:
+    """승인 대기 위원을 승인한다 — 매니저만.
+
+    이 승인이 식별정보를 읽을 수 있는 사람을 한 명 늘린다. 후원자 승인과 같은 자리에
+    두면서도 따로 함수를 둔 것은, 두 승인이 늘리는 것이 다르기 때문이다 — 후원자 승인은
+    매칭 후보를 늘리고, 위원 승인은 식별정보를 읽는 사람을 늘린다.
+    """
+    if not permissions.is_manager(manager):
+        raise AccountError("위원 승인은 매니저 권한이 있는 위원만 할 수 있습니다.")
+    if member.role is not Role.MEMBER:
+        raise AccountError("위원 계정만 승인합니다.")
+    if member.approved_at is not None:
+        raise AccountError(f"{member.name}님은 이미 승인되어 있습니다.")
+
+    member.approved_at = datetime.now(timezone.utc)
+    member.approved_by_id = manager.id
+    log_event(db, member, "approve_member", manager)
+    db.commit()
+    return member
+
+
+def reject_member(db: Session, manager: User, member: User, reason: str) -> User:
+    """승인 대기 위원을 거절한다.
+
+    계정을 지우지 않고 위촉 해제 상태로 둔다. 코드가 새어 들어온 가입이라면 그 사실이
+    남아야 하고, 지워 버리면 "그 코드로 누가 들어왔었나" 를 나중에 답할 수 없다.
+    """
+    if not permissions.is_manager(manager):
+        raise AccountError("위원 거절은 매니저 권한이 있는 위원만 할 수 있습니다.")
+    if member.approved_at is not None:
+        raise AccountError(f"{member.name}님은 이미 승인된 위원입니다.")
+    if not (reason or "").strip():
+        raise AccountError("거절 사유를 적어 주세요. 본인에게 설명해야 할 수 있습니다.")
+
+    member.is_active = False
+    log_event(db, member, "reject_member", manager, reason.strip()[:200])
+    db.commit()
+    return member
 
 
 def issue_member(
@@ -205,6 +284,8 @@ def issue_member(
         password_hash=hash_password(temp),
         must_change_password=True,
         appointed_note=note,
+        approved_at=datetime.now(timezone.utc),
+        approved_by_id=actor.id,
     )
     db.add(user)
     db.flush()
@@ -485,6 +566,21 @@ def unlock_by_manager(db: Session, manager: User, target: User) -> User:
     log_event(db, target, "unlocked", manager)
     db.commit()
     return target
+
+
+def council_members(db: Session, viewer: User) -> list[User]:
+    """협의체의 위원 명단 — 승인된 사람만. 대기자는 따로 보여 준다."""
+    from app import tenancy
+
+    stmt = (
+        select(User)
+        .where(
+            User.role == Role.MEMBER,
+            User.approved_at.is_not(None),
+        )
+        .order_by(User.is_active.desc(), User.name)
+    )
+    return list(db.scalars(tenancy.scoped(stmt, User, viewer)).all())
 
 
 def locked_accounts(db: Session, viewer: User) -> list[User]:

@@ -125,10 +125,14 @@ def seeded(db, council) -> dict[str, User]:
         email="member1@ium.test", password_hash=hash_password("ium1234"),
         name="이관희 위원", role=Role.MEMBER, council_id=cid,
         is_manager=True,  # 매니저는 위원 중 한 명 (위원회 결정, 안건 14)
+        # 관리자가 발급한 위원은 발급이 곧 승인이다. 초대 코드로 들어온 위원만
+        # 승인 대기로 서고, 그 길은 tests/test_invites.py 가 따로 확인한다.
+        approved_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     member2 = User(
         email="member2@ium.test", password_hash=hash_password("ium1234"),
         name="정미영 위원", role=Role.MEMBER, council_id=cid,
+        approved_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     donor = User(
         email="blue@ium.test", password_hash=hash_password("ium1234"),

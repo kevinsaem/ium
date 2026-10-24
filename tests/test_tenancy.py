@@ -47,6 +47,7 @@ def neighbor(db, other_council) -> dict:
         role=Role.MEMBER,
         council_id=cid,
         is_manager=True,
+        approved_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
     )
     donor = User(
         phone="01099990001",

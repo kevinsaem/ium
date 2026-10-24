@@ -94,9 +94,17 @@ def _page(request: Request, db: Session, template: str, **extra):
 
 
 @router.get("/")
-def root(user: User | None = Depends(current_user_optional)):
+def root(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(current_user_optional),
+):
     if user is None:
         return RedirectResponse("/login", status_code=303)
+    if user.role is Role.MEMBER and not user.is_approved:
+        # 승인 대기 위원을 역할 홈으로 보내면 그 화면이 403 을 내고, 403 은 홈으로
+        # 되돌리고, 홈은 다시 역할 홈으로 보낸다. 여기서 끊는다.
+        return _page(request, db, "auth/pending.html", pending_user=user)
     return RedirectResponse(HOME[user.role], status_code=303)
 
 
@@ -145,6 +153,10 @@ def _start_session(request: Request, user: User):
     request.session["uid"] = user.id
     if user.must_change_password:
         return RedirectResponse("/account/password", status_code=303)
+    if user.role is Role.MEMBER and not user.is_approved:
+        # 역할 홈으로 보내면 그 화면이 403 을 내고, 그 안내 문구가 방금 띄운 "가입
+        # 신청이 접수되었습니다" 를 덮어쓴다. 승인 대기 화면으로 바로 보낸다.
+        return RedirectResponse("/", status_code=303)
     return RedirectResponse(HOME[user.role], status_code=303)
 
 
@@ -324,6 +336,65 @@ def council_signup(
         name=name, phone=phone, pin=pin, confirm=confirm,
         shop_name=shop_name, address=address, postal_code=postal_code,
     )
+
+
+@router.get("/c/{slug}/join")
+def council_join_form(
+    slug: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(current_user_optional),
+):
+    """위원 초대 코드로 가입하는 화면.
+
+    후원자 가입(/c/<slug>/signup)과 다른 주소를 쓴다. 한 화면에 두면 "나는 위원인가
+    후원자인가" 가 아니라 "어느 칸을 채워야 하나" 를 고르게 되고, 잘못 고른 가입은
+    되돌리기 번거롭다 — 위원으로 들어온 계정은 승인 대기에 걸려 관리자 손이 간다.
+    """
+    from app import tenancy
+
+    if user is not None:
+        return RedirectResponse("/", status_code=303)
+    council = tenancy.by_slug(db, slug)
+    return _page(
+        request,
+        db,
+        "auth/join.html",
+        council=council,
+        dong=council.dong,
+        action=f"/c/{council.slug}/join",
+        locked=council.join_is_locked,
+    )
+
+
+@router.post("/c/{slug}/join")
+def council_join(
+    slug: str,
+    request: Request,
+    code: str = Form(""),
+    name: str = Form(""),
+    email: str = Form(""),
+    password: str = Form(""),
+    confirm: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    from app import accounts, invites, tenancy
+
+    council = tenancy.by_slug(db, slug)
+    back = f"/c/{council.slug}/join"
+    try:
+        member = invites.redeem(
+            db, council, code=code, name=name, email=email,
+            password=password, confirm=confirm,
+        )
+    except (invites.InviteError, accounts.AccountError) as exc:
+        request.session["flash"] = str(exc)
+        return RedirectResponse(back, status_code=303)
+
+    request.session["flash"] = (
+        f"{member.name}님, 가입 신청이 접수되었습니다. 관리자 승인 후 이용하실 수 있습니다."
+    )
+    return _start_session(request, member)
 
 
 @router.get("/logout")

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}이음 · 위원 가입{% endblock %}
+
+{% block frame %}
+<div class="auth">
+  <div class="mark">이음 <b>·</b> 理音</div>
+  <p class="lede">{{ dong }} 협의체 위원 가입<br>관리자에게 받은 초대 코드를 넣어 주세요.</p>
+
+  {% if error %}<div class="flash warn">{{ error }}</div>{% endif %}
+
+  {% if locked %}
+  <div class="card" style="cursor:default">
+    <div class="meta">
+      <h3>가입이 잠겨 있습니다</h3>
+      <div class="sub">초대 코드를 여러 번 잘못 입력했습니다.</div>
+    </div>
+    <p class="legend" style="margin-top:10px">
+      협의체 관리자가 풀어 주면 다시 가입하실 수 있습니다.
+      {% if team_contact %}<br>운영팀 — <b>{{ team_contact }}</b>{% endif %}
+    </p>
+  </div>
+  {% else %}
+  <form method="post" action="{{ action }}">
+    <div class="field">
+      <label>초대 코드</label>
+      <input name="code" placeholder="예) K7M2PQ4R" required autocapitalize="characters"
+             autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label>이름</label>
+      <input name="name" placeholder="예) 이관희" required>
+    </div>
+    <div class="field">
+      <label>이메일 (로그인 아이디)</label>
+      <input type="email" name="email" placeholder="예) member@example.kr" required>
+    </div>
+    <div class="field">
+      <label>비밀번호 정하기</label>
+      <input type="password" name="password" required autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>한 번 더</label>
+      <input type="password" name="confirm" required autocomplete="new-password">
+    </div>
+    <button class="btn" type="submit">가입 신청</button>
+  </form>
+  <p class="legend">
+    가입하시면 <b>관리자 승인을 기다리는 상태</b>가 됩니다. 위원은 도움이 필요한 가정의
+    실명과 연락처를 볼 수 있는 자리라, 관리자가 한 번 확인한 뒤에 열립니다.<br>
+    초대 코드는 유효기간과 사용 횟수가 정해져 있습니다. 지났거나 다 쓴 코드는 관리자에게
+    새로 받아 주세요.
+  </p>
+  {% endif %}
+  <a class="btn ghost" href="/login">이미 가입하셨나요? 로그인</a>
+</div>
+{% endblock %}

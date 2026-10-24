@@ -50,6 +50,28 @@ class PasswordChangeRequired(Exception):
     """임시 비밀번호로 들어온 사람은 비밀번호를 바꾸기 전까지 다른 화면을 쓸 수 없다."""
 
 
+def _require_approved(user: User) -> None:
+    """승인 대기 위원은 어느 화면도 열지 못한다.
+
+    초대 코드로 들어온 위원은 계정이 서도 바로 쓸 수 없다. 코드가 새어 들어온 가입이면
+    이 관문이 마지막 방어선이고, 위원 화면은 곧 식별정보 화면이다.
+
+    후원자에게는 걸지 않는다. 두 승인이 막는 것이 다르다 — 위원 승인은 식별정보를 읽을
+    수 있는 사람을 늘리고, 후원자 승인은 그 가게의 나눔이 위원의 매칭 후보에 오르게
+    한다 (안건 10). 승인 전 후원자도 가게를 등록하고 나눔글을 올릴 수 있어야 하고,
+    화면에서 "승인되면 위원에게 보입니다" 를 알려 준다. 올릴 수조차 없게 하면 승인을
+    기다릴 이유가 사라진다.
+
+    로그인 자체를 막지 않는 이유도 같은 쪽이다. 본인이 "가입이 됐는지 안 됐는지" 를
+    확인할 길이 있어야 한다. 로그인은 되고 화면에서 대기 중임을 알려 준다.
+    """
+    if user.role is Role.MEMBER and not user.is_approved:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="관리자 승인을 기다리는 계정입니다. 승인되면 바로 쓰실 수 있습니다.",
+        )
+
+
 def require_manager(user: User = Depends(current_user)) -> User:
     """매니저만 들어오는 화면.
 
@@ -58,6 +80,7 @@ def require_manager(user: User = Depends(current_user)) -> User:
     """
     if user.must_change_password:
         raise PasswordChangeRequired()
+    _require_approved(user)
     if not is_manager(user):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
@@ -70,6 +93,7 @@ def require_role(*roles: Role) -> Callable[[User], User]:
     def _dep(user: User = Depends(current_user)) -> User:
         if user.must_change_password:
             raise PasswordChangeRequired()
+        _require_approved(user)
         if user.role not in roles:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,

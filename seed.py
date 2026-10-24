@@ -14,7 +14,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from app import identity_service, matching, tenancy
+from app import accounts, identity_service, invites, matching, tenancy
 from app.config import settings
 from app.db import SessionLocal, engine, upgrade_to_head
 from app.icons import KIND_ICON
@@ -32,6 +32,9 @@ from app.models import (
 from app.security import hash_password
 
 PASSWORD = "ium1234"
+# 승인 대기 위원은 실제 가입과 같은 함수(create_pending_member)로 만들므로 비밀번호
+# 검증을 거친다. 데모용 ium1234 는 8자라 통과하지 못해 따로 둔다.
+PENDING_PASSWORD = "ium-pending-2026"
 # 후원자는 휴대폰 번호 + 숫자 4자리로 로그인한다 (위원회 결정, 안건 07).
 # 시연용이라 번호와 숫자를 외우기 쉽게 맞춰 두었다.
 DONOR_PIN = "2026"
@@ -101,10 +104,12 @@ def seed() -> None:
         member1 = User(
             email="member1@ium.test", password_hash=hash_password(PASSWORD),
             name="이관희 위원", role=Role.MEMBER, council_id=cid, is_manager=True, appointed_note="2026년 위촉",
+            approved_at=datetime.now(timezone.utc),
         )
         member2 = User(
             email="member2@ium.test", password_hash=hash_password(PASSWORD),
             name="정미영 위원", role=Role.MEMBER, council_id=cid, appointed_note="2026년 위촉",
+            approved_at=datetime.now(timezone.utc),
         )
         db.add_all([office, member1, member2])
         db.flush()
@@ -189,10 +194,26 @@ def seed() -> None:
         ))
         db.commit()
 
+        # 관리자 화면을 바로 볼 수 있게 초대 코드 하나와 승인 대기 위원 한 명을 남긴다.
+        invite = invites.create(
+            db, member1, days=14, max_uses=3, note="데모용 — 2026년 하반기 위촉"
+        )
+        pending = accounts.create_pending_member(
+            db,
+            council_id=cid,
+            name="가입대기 위원",
+            email="pending@ium.test",
+            password=PENDING_PASSWORD,
+            note=f"초대 코드 {invite.code}",
+        )
+        db.commit()
+
         print(f"시드 완료. 협의체: {council.label} (/{council.slug})")
         print(f"  운영자  office@ium.test (비밀번호 {PASSWORD})")
         print(f"  위원    member1@ium.test / member2@ium.test (비밀번호 {PASSWORD})")
         print(f"  후원자  010-1000-0001 외 4명 (숫자 {DONOR_PIN})")
+        print(f"  위원 초대 코드  {invite.code}  →  /c/{council.slug}/join")
+        print(f"  승인 대기 위원  {pending.email} (비밀번호 {PENDING_PASSWORD})")
     finally:
         db.close()
 

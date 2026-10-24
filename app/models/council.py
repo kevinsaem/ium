@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, true
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, text, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -48,6 +48,20 @@ class Council(Base, TimestampMixin):
     approved_by_id: Mapped[int | None] = mapped_column(ForeignKey("user.id"), default=None)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
 
+    # 초대 코드를 연달아 틀리면 이 협의체의 위원 가입 화면이 잠긴다. 계정 잠금과 같은
+    # 방식이고(안건 15), 관리자가 화면에서 풀어 준다.
+    #
+    # 알고 둔 대가가 있다. 지나가는 사람이 아무 코드나 여러 번 넣어 모집을 막을 수 있다.
+    # 그래도 두는 이유는 반대쪽이 더 무겁기 때문이다 — 코드를 무한히 넣어 볼 수 있으면
+    # 위원 자리가 추측으로 열리고, 위원은 식별정보를 읽는 사람이다. 잠기면 관리자
+    # 화면에 뜨고 한 번 눌러 풀 수 있다.
+    join_failed_attempts: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0")
+    )
+    join_locked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
+
     approved_by: Mapped["User | None"] = relationship(foreign_keys=[approved_by_id])
     members: Mapped[list["User"]] = relationship(
         back_populates="council", foreign_keys="User.council_id"
@@ -60,6 +74,10 @@ class Council(Base, TimestampMixin):
     @property
     def is_approved(self) -> bool:
         return self.approved_at is not None
+
+    @property
+    def join_is_locked(self) -> bool:
+        return self.join_locked_at is not None
 
     def __repr__(self) -> str:
         return f"<Council {self.slug} {self.label}>"

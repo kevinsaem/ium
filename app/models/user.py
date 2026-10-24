@@ -73,8 +73,19 @@ class User(Base, TimestampMixin):
 
     @property
     def is_approved(self) -> bool:
-        """후원자만 승인이 필요하다. 위원·운영자는 계정 발급 자체가 승인이다."""
-        if self.role is not Role.DONOR:
+        """승인이 필요한 계정인가, 받았는가.
+
+        후원자는 매니저가 승인한다 (안건 10). 위원도 승인이 필요하다 — 초대 코드로
+        들어오는 길이 생겼기 때문이다. 코드가 단체 대화방에 잘못 올라가면 그 동의 위원
+        자리가 열리는 셈이고, 위원은 식별정보를 읽는 사람이다.
+
+        관리자가 이름과 이메일을 받아 직접 발급한 계정은 발급 자체가 승인이므로 그때
+        approved_at 을 찍는다. 그래서 여기서 '어떻게 들어왔는지' 를 따로 묻지 않는다 —
+        승인한 사람이 있으면 승인된 것이다.
+
+        슈퍼 관리자는 서버 명령으로만 생기므로 승인할 상위가 없다.
+        """
+        if self.role is Role.SUPER or self.role is Role.OFFICE:
             return True
         return self.approved_at is not None
 

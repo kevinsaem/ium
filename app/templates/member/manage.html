@@ -3,10 +3,166 @@
 <div class="banner">
   <div class="seal ic-svg">{{ icon('shield') }}</div>
   <div>
-    <b>매니저 화면</b>
-    <p>잠긴 계정을 풀어 주고, 로그인 화면에 띄울 운영팀 연락처를 정합니다.</p>
+    <b>관리자 화면</b>
+    <p>위원을 들이고, 잠긴 계정을 풀어 주고, 운영팀 연락처를 정합니다.</p>
   </div>
 </div>
+
+{% if issued %}
+<div class="card" style="cursor:default;border-color:var(--accent)">
+  <div class="sectit" style="margin-top:0">{{ issued.user.name }} 위원 계정 발급 완료</div>
+  <div class="meta"><div class="sub">{{ issued.user.email }}</div></div>
+  <div class="field" style="margin:11px 0 0">
+    <label>임시 비밀번호 (이 화면에서만 보입니다)</label>
+    <input value="{{ issued.temp }}" readonly onclick="this.select()">
+  </div>
+  <p class="legend">
+    저장되지 않습니다. 지금 위원께 직접 전해 주세요. 위원은 첫 로그인에서 새 비밀번호를
+    정해야 앱을 쓸 수 있습니다.
+  </p>
+</div>
+{% endif %}
+
+{% if pending %}
+<div class="sectit">승인 대기 위원 · {{ pending | length }}명</div>
+<p class="legend" style="margin:0 0 10px">
+  초대 코드로 가입한 분들입니다. 위원은 도움이 필요한 가정의 <b>실명과 연락처를 볼 수 있는
+  자리</b>라, 아는 분인지 확인한 뒤에 승인해 주세요.
+</p>
+{% for m in pending %}
+<div class="card" style="cursor:default">
+  <div class="row">
+    <div class="thumb ic-svg">{{ icon('user') }}</div>
+    <div class="meta">
+      <h3>{{ m.name }}</h3>
+      <div class="sub">{{ m.email }}</div>
+      <div class="sub">{{ m.created_at | local }} 신청{% if m.appointed_note %} · {{ m.appointed_note }}{% endif %}</div>
+    </div>
+  </div>
+  <div class="btnrow">
+    <form method="post" action="/member/manage/members/{{ m.id }}/approve">
+      <button class="btn sm" type="submit" style="width:100%">승인</button>
+    </form>
+  </div>
+  <form method="post" action="/member/manage/members/{{ m.id }}/reject">
+    <div class="field" style="margin:11px 0 0">
+      <label>거절 사유</label>
+      <input name="reason" placeholder="예) 위촉 명단에 없는 분" required>
+    </div>
+    <button class="btn ghost sm" type="submit" style="width:100%">거절</button>
+  </form>
+</div>
+{% endfor %}
+{% endif %}
+
+<div class="sectit">위원 초대 코드</div>
+{% if join_locked %}
+<div class="card" style="cursor:default;border-color:var(--warn, var(--accent))">
+  <div class="meta">
+    <h3>위원 가입이 잠겨 있습니다</h3>
+    <div class="sub">초대 코드를 {{ max_failed_codes }}회 연속 잘못 입력했습니다.</div>
+  </div>
+  <p class="legend" style="margin-top:10px">
+    누군가 코드를 추측하려 했을 수 있습니다. 풀기 전에 발급해 둔 코드를 한 번 살펴보시고,
+    새어 나간 것 같으면 먼저 무효화해 주세요.
+  </p>
+  <form method="post" action="/member/manage/join/unlock">
+    <button class="btn sm" type="submit" style="width:100%">가입 잠금 해제</button>
+  </form>
+</div>
+{% endif %}
+
+{% for c in codes %}
+<div class="card" style="cursor:default">
+  <div class="row">
+    <div class="thumb ic-svg">{{ icon('shield') }}</div>
+    <div class="meta">
+      <h3 style="letter-spacing:1px">{{ c.code }}</h3>
+      <div class="foot">
+        <span class="tag {{ 'fill' if c.is_usable else 'line' }}">{{ c.state_label }}</span>
+        <span class="tag soft">{{ c.used_count }}/{{ c.max_uses }}회 사용</span>
+      </div>
+      <div class="sub">
+        {{ c.expires_at | local }}까지
+        {% if c.note %} · {{ c.note }}{% endif %}
+      </div>
+      <div class="sub">{{ c.created_at | local }} {{ c.created_by.name }} 발급
+        {% if c.is_revoked %} · {{ c.revoked_at | local }} 무효화{% endif %}
+      </div>
+    </div>
+  </div>
+  {% if not c.is_revoked %}
+  <form method="post" action="/member/manage/invites/{{ c.id }}/revoke"
+        onsubmit="return confirm('초대 코드 {{ c.code }} 를 무효화합니다. 이 코드로는 더 가입할 수 없습니다. 계속할까요?')">
+    <button class="btn ghost sm" type="submit" style="width:100%">무효화</button>
+  </form>
+  {% endif %}
+</div>
+{% else %}
+<div class="empty" style="padding:22px">발급한 초대 코드가 없습니다.</div>
+{% endfor %}
+
+<form method="post" action="/member/manage/invites">
+  <div class="field">
+    <label>유효기간 (일)</label>
+    <input name="days" inputmode="numeric" value="{{ invite_defaults.days }}">
+  </div>
+  <div class="field">
+    <label>사용 횟수</label>
+    <input name="max_uses" inputmode="numeric" value="{{ invite_defaults.max_uses }}">
+  </div>
+  <div class="field">
+    <label>메모 (선택)</label>
+    <input name="note" placeholder="예) 2026-12-10 정례회의 위촉 3명">
+  </div>
+  <button class="btn" type="submit">초대 코드 발급</button>
+</form>
+<p class="legend">
+  {% if join_url %}위원께 전할 주소 — <b>{{ join_url }}</b><br>{% endif %}
+  코드를 받은 분이 이 주소에서 이름·이메일·비밀번호를 정해 가입하면 <b>승인 대기</b>로
+  올라옵니다. 유효기간이 지나거나 사용 횟수를 다 쓰면 저절로 막히고, 새어 나간 것 같으면
+  바로 무효화해 주세요.
+</p>
+
+<div class="sectit">위원 명단 · {{ members | length }}명</div>
+{% for m in members %}
+<div class="card" style="cursor:default">
+  <div class="row">
+    <div class="thumb ic-svg">{{ icon('user') }}</div>
+    <div class="meta">
+      <h3>{{ m.name }}</h3>
+      <div class="sub">{{ m.email }}{% if m.appointed_note %} · {{ m.appointed_note }}{% endif %}</div>
+      <div class="foot">
+        <span class="tag {{ 'fill' if m.is_active else 'line' }}">{{ '활동 중' if m.is_active else '위촉 해제' }}</span>
+        {% if m.is_manager %}<span class="tag fill">관리자</span>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="empty" style="padding:22px">아직 승인된 위원이 없습니다.</div>
+{% endfor %}
+
+<div class="sectit">위원 계정 직접 발급</div>
+<form method="post" action="/member/manage/members">
+  <div class="field">
+    <label>이름</label>
+    <input name="name" placeholder="예) 이관희" required>
+  </div>
+  <div class="field">
+    <label>이메일 (로그인 아이디)</label>
+    <input type="email" name="email" placeholder="예) member@example.kr" required>
+  </div>
+  <div class="field">
+    <label>위촉 메모 (선택)</label>
+    <input name="note" placeholder="예) 2026-12-10 정례회의 위촉">
+  </div>
+  <button class="btn ghost" type="submit">계정 발급하고 임시 비밀번호 받기</button>
+</form>
+<p class="legend">
+  회의 자리에서 명단을 받아 넣을 때 씁니다. 관리자가 직접 넣은 계정은 <b>발급이 곧 승인</b>이라
+  따로 승인하지 않아도 됩니다.
+</p>
 
 <div class="sectit">잠긴 계정 · {{ locked | length }}건</div>
 {% for u in locked %}

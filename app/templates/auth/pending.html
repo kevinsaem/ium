@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}이음 · 승인 대기{% endblock %}
+
+{% block frame %}
+<div class="auth">
+  <div class="mark">이음 <b>·</b> 理音</div>
+  <p class="lede">{{ pending_user.name }}님, 가입 신청이 접수되었습니다.</p>
+
+  {% if error %}<div class="flash warn">{{ error }}</div>{% endif %}
+
+  <div class="card" style="cursor:default">
+    <div class="meta">
+      <h3>관리자 승인을 기다리는 중입니다</h3>
+      <div class="sub">{{ pending_user.email }}</div>
+    </div>
+    <p class="legend" style="margin-top:10px">
+      {% if pending_user.council %}{{ pending_user.council.label }} {% endif %}협의체 관리자가
+      확인하면 바로 쓰실 수 있습니다. 이 화면을 다시 열어 확인해 보세요.<br>
+      위원은 도움이 필요한 가정의 <b>실명과 연락처를 볼 수 있는 자리</b>라, 관리자가 한 번
+      확인한 뒤에 열립니다.
+    </p>
+    {% if team_contact %}
+    <p class="legend">급하시면 운영팀에 연락해 주세요 — <b>{{ team_contact }}</b></p>
+    {% endif %}
+  </div>
+
+  <a class="btn ghost" href="/logout">로그아웃</a>
+</div>
+{% endblock %}
