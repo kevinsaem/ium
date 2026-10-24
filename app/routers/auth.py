@@ -15,7 +15,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import accounts
+from app import accounts, devices
 from app.config import settings
 from app.db import get_db
 from app.deps import current_user_optional
@@ -70,6 +70,15 @@ def login_form(
 ):
     if user is not None:
         return RedirectResponse(HOME[user.role], status_code=303)
+
+    # 기억된 기기면 숫자를 묻지 않는다 (위원회 결정, 안건 13). 30일이 지나면 토큰이 만료돼
+    # 여기서 걸러지고, 그때 다시 숫자를 받는다.
+    remembered = devices.resolve(db, request.cookies.get(devices.COOKIE_NAME))
+    if remembered is not None:
+        request.session.clear()
+        request.session["uid"] = remembered.id
+        return RedirectResponse(HOME[remembered.role], status_code=303)
+
     return _page(request, db, "auth/login.html", email=email)
 
 
@@ -99,6 +108,19 @@ def _start_session(request: Request, user: User):
     return RedirectResponse(HOME[user.role], status_code=303)
 
 
+def _remember_device(request: Request, db: Session, user: User, response):
+    """후원자 기기만 기억한다.
+
+    위원·운영자는 식별정보와 승인 권한이 걸려 있어 기억해 두지 않는다. 결정도 후원자를
+    두고 한 이야기였다 ("본인 기기는 한동안 인증 없이 사용하고").
+    """
+    if user.role is not Role.DONOR or user.must_change_password:
+        return response
+    token = devices.remember(db, user, request.headers.get("user-agent"))
+    devices.set_cookie(response, token)
+    return response
+
+
 def _sign_in(request: Request, db: Session, user: User | None, secret: str, wrong: str):
     """계정을 찾았는지와 비밀번호가 맞는지를 한 문장으로 답한다.
 
@@ -124,7 +146,7 @@ def _sign_in(request: Request, db: Session, user: User | None, secret: str, wron
         return _deny(request, "위촉이 해제된 계정입니다. 운영자에게 문의하세요.")
 
     accounts.unlock(db, user)
-    return _start_session(request, user)
+    return _remember_device(request, db, user, _start_session(request, user))
 
 
 @router.post("/login")
@@ -169,21 +191,31 @@ def signup(
     pin: str = Form(""),
     confirm: str = Form(""),
     shop_name: str = Form(""),
+    address: str = Form(""),
+    postal_code: str = Form(""),
     db: Session = Depends(get_db),
 ):
     try:
         donor = accounts.signup_donor(
-            db, name=name, phone=phone, pin=pin, confirm=confirm, shop_name=shop_name
+            db, name=name, phone=phone, pin=pin, confirm=confirm, shop_name=shop_name,
+            address=address, postal_code=postal_code,
         )
     except accounts.AccountError as exc:
         request.session["flash"] = str(exc)
         return RedirectResponse("/signup", status_code=303)
 
     request.session["flash"] = f"{donor.name}님, 가입했습니다. 나눔글을 올려 보세요."
-    return _start_session(request, donor)
+    return _remember_device(request, db, donor, _start_session(request, donor))
 
 
 @router.get("/logout")
-def logout(request: Request):
+def logout(request: Request, db: Session = Depends(get_db)):
+    """로그아웃은 이 기기 기억도 함께 끊는다.
+
+    끊지 않으면 로그아웃하고도 로그인 화면에서 그대로 다시 들어가, 나간 것처럼 보이지 않는다.
+    """
+    devices.forget(db, request.cookies.get(devices.COOKIE_NAME))
     request.session.clear()
-    return RedirectResponse("/login", status_code=303)
+    response = RedirectResponse("/login", status_code=303)
+    devices.clear_cookie(response)
+    return response

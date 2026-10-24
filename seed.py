@@ -37,12 +37,17 @@ PASSWORD = "ium1234"
 DONOR_PIN = "2026"
 
 DONORS = [
-    # (이름, 휴대폰, 가게, 업종, 도보, 인증여부)
-    ("김행복", "01010000001", "행복미용실", "미용", 4, True),
-    ("박순자", "01010000002", "엄마손칼국수", "분식", 7, True),
-    ("강대표", "01010000003", "강마트", "마트", 3, True),
-    ("한빛", "01010000004", "한빛철물점", "철물", 9, False),
-    ("최세탁", "01010000005", "푸른세탁소", "세탁", 6, True),
+    # (이름, 휴대폰, 가게, 업종, 도보, 인증여부, 주소, 우편번호)
+    # 주소는 지도 링크용 선택 정보다 (안건 13). 시연용 가상 주소다.
+    ("김행복", "01010000001", "행복미용실", "미용", 4, True,
+     "안산시 단원구 선부동 101-1", "15236"),
+    ("박순자", "01010000002", "엄마손칼국수", "분식", 7, True,
+     "안산시 단원구 선부동 202-2", "15237"),
+    ("강대표", "01010000003", "강마트", "마트", 3, True,
+     "안산시 단원구 선부동 303-3", "15238"),
+    ("한빛", "01010000004", "한빛철물점", "철물", 9, False, None, None),
+    ("최세탁", "01010000005", "푸른세탁소", "세탁", 6, True,
+     "안산시 단원구 선부동 505-5", "15239"),
 ]
 
 OFFERS = [
@@ -101,7 +106,7 @@ def seed() -> None:
         db.flush()
 
         shops: dict[str, Shop] = {}
-        for name, phone, shop_name, category, walk, certified in DONORS:
+        for name, phone, shop_name, category, walk, certified, address, postal in DONORS:
             donor = User(
                 phone=phone, password_hash=hash_password(DONOR_PIN), name=name, role=Role.DONOR,
                 # 시연 데이터는 승인을 마친 상태로 둔다. 승인 대기 화면은 아래에서 한 곳만 남긴다.
@@ -111,6 +116,7 @@ def seed() -> None:
             db.flush()
             shop = Shop(
                 owner_id=donor.id, name=shop_name, category=category, walk_minutes=walk,
+                address=address, postal_code=postal,
                 is_certified=certified,
                 certified_by_id=office.id if certified else None,
                 certified_note="2026-07 현장 확인" if certified else None,
@@ -172,7 +178,10 @@ def seed() -> None:
         )
         db.add(waiting)
         db.flush()
-        db.add(Shop(owner_id=waiting.id, name="새봄반찬", category="반찬", walk_minutes=5))
+        db.add(Shop(
+            owner_id=waiting.id, name="새봄반찬", category="반찬", walk_minutes=5,
+            address="안산시 단원구 선부동 909-9", postal_code="15240",
+        ))
         db.commit()
 
         print("시드 완료.")

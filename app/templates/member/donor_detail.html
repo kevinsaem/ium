@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="deftit">{{ donor.shop.name if donor.shop else donor.name }}</div>
+<div class="defmeta">
+  {{ donor.name }} · {{ donor.phone or '번호 없음' }}
+  {% if donor.shop and donor.shop.category %} · {{ donor.shop.category }}{% endif %}
+</div>
+<div class="foot" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+  {% if donor.approved_at %}
+  <span class="tag fill">승인 {{ donor.approved_at | local('%Y-%m-%d') }}</span>
+  {% else %}
+  <span class="tag line">승인 대기</span>
+  {% endif %}
+  {% if donor.shop and donor.shop.is_certified %}
+  <span class="verify"><span class="ic-svg">{{ icon('check') }}</span>인증 나눔가게</span>
+  {% endif %}
+</div>
+
+{% if donor.shop and donor.shop.address %}
+<div class="divline"></div>
+<div class="sectit">찾아가는 길</div>
+<div class="card" style="cursor:default">
+  <div class="meta">
+    <h3 style="font-size:13px">{{ donor.shop.address }}</h3>
+    {% if donor.shop.postal_code %}<div class="sub">우편번호 {{ donor.shop.postal_code }}</div>{% endif %}
+    <div class="sub">{{ donor.shop.distance_label }}</div>
+  </div>
+  <a class="btn ghost sm" href="{{ donor.shop.map_url }}" target="_blank" rel="noopener">지도에서 보기</a>
+</div>
+<p class="legend">
+  담당 위원이 아니어도 이 주소로 찾아갈 수 있습니다. 지도 앱이 열립니다.
+</p>
+{% elif donor.shop %}
+<div class="divline"></div>
+<p class="legend">주소가 등록되지 않아 지도를 띄울 수 없습니다. 방문하실 때 번호로 연락해 주세요.</p>
+{% endif %}
+
+<div class="sectit">메모 · {{ notes | length }}개</div>
+<form method="post" action="/member/donors/{{ donor.id }}/notes">
+  <div class="field">
+    <textarea name="body" placeholder="예) 10/24 방문. 매주 화요일 오전에 반찬 5인분 가능하다고 하심." required></textarea>
+  </div>
+  <button class="btn ghost" type="submit">메모 남기기</button>
+</form>
+{% for n in notes %}
+<div class="card" style="cursor:default;padding:11px 13px">
+  <div class="meta">
+    <h3 style="font-size:12px;color:var(--ink-3)">{{ n.created_at | local }} · {{ n.author.name }}</h3>
+    <div class="sub" style="white-space:pre-line;color:var(--ink)">{{ n.body }}</div>
+  </div>
+</div>
+{% else %}
+<div class="empty" style="padding:22px">아직 메모가 없습니다.</div>
+{% endfor %}
+<p class="legend">
+  메모는 쌓입니다 — 고쳐 쓰거나 지우지 않습니다. 위원들이 함께 봅니다.
+</p>
+
+<div class="sectit">이 가게의 나눔글</div>
+{% for o in offers %}
+<div class="card" style="cursor:default;padding:11px 13px">
+  <div class="meta">
+    <h3 style="font-size:12.5px">{{ o.title }}</h3>
+    <div class="sub">{{ o.kind.label }} · {{ o.status.label }} · {{ o.created_at | local('%Y-%m-%d') }}</div>
+  </div>
+</div>
+{% else %}
+<div class="empty" style="padding:22px">아직 올라온 나눔글이 없습니다.</div>
+{% endfor %}
+
+<a class="btn ghost" href="/member/donors">후원자 목록</a>
+{% endblock %}

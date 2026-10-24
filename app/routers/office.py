@@ -458,6 +458,8 @@ def register_donor_account(
     name: str = Form(""),
     phone: str = Form(""),
     shop_name: str = Form(""),
+    address: str = Form(""),
+    postal_code: str = Form(""),
     user: User = Depends(office_dep),
     db: Session = Depends(get_db),
 ):
@@ -467,7 +469,8 @@ def register_donor_account(
     """
     try:
         donor, pin = accounts.register_donor(
-            db, user, name=name, phone=phone, shop_name=shop_name
+            db, user, name=name, phone=phone, shop_name=shop_name,
+            address=address, postal_code=postal_code,
         )
     except accounts.AccountError as exc:
         flash(request, str(exc))

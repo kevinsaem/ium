@@ -14,6 +14,7 @@ from app.forms import HOUSEHOLD_SIZE, parse_optional_int
 from app import permissions
 from app.models import (
     Case,
+    DonorNote,
     CaseStatus,
     IdentityAccessLog,
     Match,
@@ -396,6 +397,67 @@ def donors(request: Request, user: User = Depends(member_dep), db: Session = Dep
     )
 
 
+@router.get("/donors/{donor_id}")
+def donor_detail(
+    donor_id: int, request: Request, user: User = Depends(member_dep), db: Session = Depends(get_db)
+):
+    """후원자 한 곳 — 주소·지도·메모.
+
+    "주소는 지도에 표시해 담당 위원 외 다른 봉사위원도 가게를 쉽게 찾아갈 수 있게 한다"
+    (위원회 결정, 안건 13). 그래서 이 화면은 위원 누구나 본다.
+    """
+    donor = db.get(User, donor_id)
+    if donor is None or donor.role is not Role.DONOR:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="후원자를 찾을 수 없습니다.")
+
+    notes = list(
+        db.scalars(
+            select(DonorNote)
+            .options(selectinload(DonorNote.author))
+            .where(DonorNote.donor_id == donor.id)
+            .order_by(DonorNote.created_at.desc(), DonorNote.id.desc())
+        ).all()
+    )
+    offers = list(
+        db.scalars(
+            select(Offer).join(Shop).where(Shop.owner_id == donor.id).order_by(Offer.created_at.desc())
+        ).all()
+    ) if donor.shop else []
+
+    return render(
+        request,
+        "member/donor_detail.html",
+        user,
+        "donors",
+        donor=donor,
+        notes=notes,
+        offers=offers,
+        is_manager=permissions.is_manager(user),
+    )
+
+
+@router.post("/donors/{donor_id}/notes")
+def add_donor_note(
+    donor_id: int,
+    request: Request,
+    body: str = Form(""),
+    user: User = Depends(member_dep),
+    db: Session = Depends(get_db),
+):
+    """메모를 쌓는다. 위원 누구나 적을 수 있다."""
+    donor = db.get(User, donor_id)
+    if donor is None or donor.role is not Role.DONOR:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="후원자를 찾을 수 없습니다.")
+    try:
+        accounts.add_donor_note(db, user, donor, body)
+    except accounts.AccountError as exc:
+        flash(request, str(exc))
+        return RedirectResponse(f"/member/donors/{donor_id}", status_code=303)
+
+    flash(request, "메모를 남겼습니다.")
+    return RedirectResponse(f"/member/donors/{donor_id}", status_code=303)
+
+
 @router.post("/donors/{donor_id}/approve")
 def approve_donor_account(
     donor_id: int,
@@ -445,6 +507,8 @@ def register_donor_account(
     name: str = Form(""),
     phone: str = Form(""),
     shop_name: str = Form(""),
+    address: str = Form(""),
+    postal_code: str = Form(""),
     user: User = Depends(member_dep),
     db: Session = Depends(get_db),
 ):
@@ -455,7 +519,8 @@ def register_donor_account(
     """
     try:
         donor, pin = accounts.register_donor(
-            db, user, name=name, phone=phone, shop_name=shop_name
+            db, user, name=name, phone=phone, shop_name=shop_name,
+            address=address, postal_code=postal_code,
         )
     except accounts.AccountError as exc:
         flash(request, str(exc))

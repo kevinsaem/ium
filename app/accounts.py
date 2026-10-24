@@ -202,7 +202,15 @@ def _new_donor(db: Session, name: str, phone: str, pin: str, *, must_change: boo
 
 
 def signup_donor(
-    db: Session, *, name: str, phone: str, pin: str, confirm: str, shop_name: str = ""
+    db: Session,
+    *,
+    name: str,
+    phone: str,
+    pin: str,
+    confirm: str,
+    shop_name: str = "",
+    address: str = "",
+    postal_code: str = "",
 ) -> User:
     """후원자가 직접 가입한다. 숫자 4자리를 본인이 정하므로 전달할 것이 없다."""
     name, digits = _prepare_donor(db, name, phone)
@@ -213,14 +221,21 @@ def signup_donor(
         raise AccountError(problem)
 
     donor = _new_donor(db, name, digits, pin, must_change=False)
-    _attach_shop(db, donor, shop_name)
+    _attach_shop(db, donor, shop_name, address, postal_code)
     log_event(db, donor, "signup", donor, "후원자 직접 가입")
     db.commit()
     return donor
 
 
 def register_donor(
-    db: Session, actor: User, *, name: str, phone: str, shop_name: str = ""
+    db: Session,
+    actor: User,
+    *,
+    name: str,
+    phone: str,
+    shop_name: str = "",
+    address: str = "",
+    postal_code: str = "",
 ) -> tuple[User, str]:
     """운영자나 위원이 후원자를 대신 등록한다.
 
@@ -230,7 +245,7 @@ def register_donor(
     name, digits = _prepare_donor(db, name, phone)
     pin = generate_pin()
     donor = _new_donor(db, name, digits, pin, must_change=True)
-    _attach_shop(db, donor, shop_name)
+    _attach_shop(db, donor, shop_name, address, postal_code)
     log_event(db, donor, "register", actor, f"{actor.role.tag}가 대신 등록")
     db.commit()
     return donor, pin
@@ -253,6 +268,12 @@ def reset_donor_pin(db: Session, actor: User, donor: User) -> str:
     unlock(db, donor, commit=False)
     log_event(db, donor, "reset", actor, "전화번호 뒤 네 자리로 초기화")
     db.commit()
+
+    # 초기화는 보통 "못 들어간다" 는 연락을 받고 하는 일이다. 기기 기억을 남겨 두면
+    # 잃어버린 휴대폰이 계속 들어온다.
+    from app import devices
+
+    devices.forget_all(db, donor)
     return pin
 
 
@@ -273,13 +294,45 @@ def change_pin(db: Session, donor: User, *, current: str, new: str, confirm: str
     db.commit()
 
 
-def _attach_shop(db: Session, donor: User, shop_name: str) -> None:
+def _attach_shop(
+    db: Session, donor: User, shop_name: str, address: str = "", postal_code: str = ""
+) -> None:
+    """가게 정보. 이름만 필수고 주소·우편번호는 선택이다 (위원회 결정, 안건 13)."""
     name = (shop_name or "").strip()
-    if not name:
+    address = (address or "").strip()
+    postal = "".join(ch for ch in (postal_code or "") if ch.isdigit())
+    if not (name or address):
         return
     from app.models import Shop
 
-    db.add(Shop(owner_id=donor.id, name=name))
+    db.add(
+        Shop(
+            owner_id=donor.id,
+            name=name or donor.name,
+            address=address or None,
+            postal_code=postal or None,
+        )
+    )
+
+
+def add_donor_note(db: Session, author: User, donor: User, body: str) -> "DonorNote":
+    """후원자 메모를 쌓는다 (위원회 결정, 안건 13).
+
+    고쳐 쓰는 메모가 아니라 누적 기록이다. 날짜·시간·작성자는 저장할 때 함께 남는다.
+    """
+    from app.models import DonorNote
+
+    text = (body or "").strip()
+    if not text:
+        raise AccountError("메모 내용을 입력해 주세요.")
+    if donor.role is not Role.DONOR:
+        raise AccountError("후원자에게만 메모를 남길 수 있습니다.")
+
+    note = DonorNote(donor_id=donor.id, author_id=author.id, body=text)
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+    return note
 
 
 # --- 연속 실패 잠금 ---------------------------------------------------------

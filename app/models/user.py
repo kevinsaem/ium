@@ -84,6 +84,9 @@ class Shop(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(120))
     category: Mapped[str | None] = mapped_column(String(60), default=None)
     address: Mapped[str | None] = mapped_column(String(255), default=None)
+    # 선택 정보 (위원회 결정, 안건 13). 주소는 지도에 띄워 "담당 위원 외 다른 봉사위원도
+    # 가게를 쉽게 찾아갈 수 있게" 하는 용도다.
+    postal_code: Mapped[str | None] = mapped_column(String(10), default=None)
     walk_minutes: Mapped[int | None] = mapped_column(default=None)
 
     is_certified: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -92,6 +95,19 @@ class Shop(Base, TimestampMixin):
 
     owner: Mapped["User"] = relationship(back_populates="shop", foreign_keys=[owner_id])
     offers: Mapped[list["Offer"]] = relationship(back_populates="shop")
+
+    @property
+    def map_url(self) -> str | None:
+        """주소를 지도에서 찾는 링크.
+
+        지도 API 키 없이 공개 검색 주소를 쓴다. 휴대폰에서는 지도 앱이 열리고 PC 에서는
+        웹 지도가 열린다. 파일럿에 지도 API 계약을 붙일 이유가 없다.
+        """
+        if not self.address:
+            return None
+        from urllib.parse import quote
+
+        return f"https://map.kakao.com/?q={quote(self.address)}"
 
     @property
     def distance_label(self) -> str:

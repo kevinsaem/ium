@@ -23,6 +23,14 @@
       <input name="shop_name" placeholder="예) 행복미용실">
     </div>
     <div class="field">
+      <label>가게 주소 (선택)</label>
+      <input name="address" placeholder="예) 안산시 단원구 선부동 123-4">
+    </div>
+    <div class="field">
+      <label>우편번호 (선택)</label>
+      <input name="postal_code" inputmode="numeric" placeholder="예) 15236" maxlength="10">
+    </div>
+    <div class="field">
       <label>숫자 {{ pin_length }}자리 정하기</label>
       <input type="password" name="pin" inputmode="numeric" pattern="[0-9]*"
              maxlength="{{ pin_length }}" autocomplete="new-password" required>
@@ -37,6 +45,8 @@
 
   <p class="legend">
     이름과 휴대폰 번호는 협의체가 나눔을 연결하고 연락하는 데만 씁니다.<br>
+    주소를 적어 주시면 위원이 가게를 찾아오기 쉽습니다. 적지 않으셔도 됩니다.<br>
+    이 기기는 30일간 기억해 두어, 그동안은 숫자를 다시 묻지 않습니다.<br>
     도움받는 분의 정보는 후원자에게 공개되지 않습니다.
   </p>
   <a class="btn ghost" href="/login">이미 가입하셨나요? 로그인</a>
