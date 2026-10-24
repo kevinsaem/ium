@@ -45,6 +45,37 @@ def _own_case(db: Session, case_id: int, user: User) -> Case:
     return case
 
 
+def _donor(db: Session, donor_id: int, user: User) -> User:
+    """주소의 id 로 후원자를 찾는다.
+
+    목록은 협의체로 걸러지지만 주소에 id 를 직접 넣는 길은 그 조건을 거치지 않는다.
+    라우트마다 확인을 붙이면 언젠가 하나를 빠뜨리고, 실제로 빠뜨렸다 — 새로 만든
+    협의체의 관리자가 옆 동 후원자를 승인할 수 있었다. 그래서 조회 자체를 여기 모은다.
+    """
+    donor = db.get(User, donor_id)
+    if donor is None or donor.role is not Role.DONOR:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="후원자를 찾을 수 없습니다.")
+    tenancy.assert_same(user, donor)
+    return donor
+
+
+def _account(db: Session, user_id: int, user: User) -> User:
+    """잠금 해제처럼 역할을 가리지 않는 동작의 대상 계정."""
+    target = db.get(User, user_id)
+    if target is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="계정을 찾을 수 없습니다.")
+    tenancy.assert_same(user, target)
+    return target
+
+
+def _offer(db: Session, offer_id: int, user: User) -> Offer:
+    offer = db.get(Offer, offer_id)
+    if offer is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="나눔글을 찾을 수 없습니다.")
+    tenancy.assert_same(user, offer)
+    return offer
+
+
 def _own_match(db: Session, match_id: int, user: User) -> Match:
     """매칭에 손대는 건 그 케이스의 담당 위원이다.
 
@@ -303,9 +334,7 @@ def propose_match(
     db: Session = Depends(get_db),
 ):
     case = _own_case(db, case_id, user)
-    offer = db.get(Offer, offer_id)
-    if offer is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="나눔글을 찾을 수 없습니다.")
+    offer = _offer(db, offer_id, user)
 
     matching.propose(db, case, offer, user, note.strip() or None)
     flash(request, "매칭했습니다. 전달 후 완료 처리해 주세요.")
@@ -416,10 +445,7 @@ def donor_detail(
     "주소는 지도에 표시해 담당 위원 외 다른 봉사위원도 가게를 쉽게 찾아갈 수 있게 한다"
     (위원회 결정, 안건 13). 그래서 이 화면은 위원 누구나 본다.
     """
-    donor = db.get(User, donor_id)
-    if donor is None or donor.role is not Role.DONOR:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="후원자를 찾을 수 없습니다.")
-    tenancy.assert_same(user, donor)
+    donor = _donor(db, donor_id, user)
 
     notes = list(
         db.scalars(
@@ -459,9 +485,7 @@ def add_donor_note(
     db: Session = Depends(get_db),
 ):
     """메모를 쌓는다. 위원 누구나 적을 수 있다."""
-    donor = db.get(User, donor_id)
-    if donor is None or donor.role is not Role.DONOR:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="후원자를 찾을 수 없습니다.")
+    donor = _donor(db, donor_id, user)
     try:
         accounts.add_donor_note(db, user, donor, body)
     except accounts.AccountError as exc:
@@ -480,9 +504,7 @@ def approve_donor_account(
     db: Session = Depends(get_db),
 ):
     """후원자 승인 — 매니저만."""
-    donor = db.get(User, donor_id)
-    if donor is None or donor.role is not Role.DONOR:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="후원자를 찾을 수 없습니다.")
+    donor = _donor(db, donor_id, user)
     try:
         accounts.approve_donor(db, user, donor)
     except accounts.AccountError as exc:
@@ -502,9 +524,7 @@ def unapprove_donor_account(
     db: Session = Depends(get_db),
 ):
     """승인 취소 — 가게가 문을 닫거나 문제가 생겼을 때."""
-    donor = db.get(User, donor_id)
-    if donor is None or donor.role is not Role.DONOR:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="후원자를 찾을 수 없습니다.")
+    donor = _donor(db, donor_id, user)
     try:
         accounts.unapprove_donor(db, user, donor, reason)
     except accounts.AccountError as exc:
@@ -569,9 +589,7 @@ def unlock_account(
     user: User = Depends(manager_dep),
     db: Session = Depends(get_db),
 ):
-    target = db.get(User, user_id)
-    if target is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="계정을 찾을 수 없습니다.")
+    target = _account(db, user_id, user)
     try:
         accounts.unlock_by_manager(db, user, target)
     except accounts.AccountError as exc:

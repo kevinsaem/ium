@@ -40,6 +40,12 @@ TABS: dict[Role, list[dict[str, str]]] = {
         {"key": "badges", "href": "/office/badges", "icon": "award", "label": "인증"},
         {"key": "records", "href": "/office/report", "icon": "doc", "label": "기록"},
     ],
+    # 슈퍼 관리자의 탭이 하나인 것은 할 일이 하나뿐이기 때문이다 — 협의체를 만들고
+    # 열어 주는 것. 탭을 늘리고 싶어질 때마다 그게 협의체 안을 들여다보는 화면이
+    # 아닌지 먼저 물을 것.
+    Role.SUPER: [
+        {"key": "councils", "href": "/super", "icon": "compass", "label": "협의체"},
+    ],
 }
 
 # 매니저 전용 탭. 매니저는 위원 중 한 명이라(안건 14) 위원 탭 뒤에 붙인다.
@@ -53,7 +59,12 @@ def tabs_for(user: User) -> list[dict[str, str]]:
     return tabs
 
 
-HOME: dict[Role, str] = {Role.DONOR: "/donor", Role.MEMBER: "/member", Role.OFFICE: "/office"}
+HOME: dict[Role, str] = {
+    Role.DONOR: "/donor",
+    Role.MEMBER: "/member",
+    Role.OFFICE: "/office",
+    Role.SUPER: "/super",
+}
 
 
 def dong_of(user: "User | None") -> str:

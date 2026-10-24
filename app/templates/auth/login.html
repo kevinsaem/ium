@@ -4,7 +4,7 @@
 {% block frame %}
 <div class="auth">
   <div class="mark">이음 <b>·</b> 理音</div>
-  <p class="lede">{{ settings.dong }} 지역사회보장협의체 나눔 매칭<br>도움이 필요한 이웃이 스스로 손을 들지 않아도.</p>
+  <p class="lede">{% if dong %}{{ dong }} {% endif %}지역사회보장협의체 나눔 매칭<br>도움이 필요한 이웃이 스스로 손을 들지 않아도.</p>
 
   {% if error %}<div class="flash warn">{{ error }}</div>{% endif %}
 

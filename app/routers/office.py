@@ -43,6 +43,35 @@ from app.timeutil import (
 router = APIRouter(prefix="/office", dependencies=[Depends(require_role(Role.OFFICE))])
 office_dep = require_role(Role.OFFICE)
 
+def _member(db: Session, member_id: int, user: User) -> User:
+    """주소의 id 로 위원을 찾는다 — 경계 확인까지 여기서 끝낸다.
+
+    라우트마다 확인을 붙이는 방식은 한 번 빠뜨리면 조용히 넘어간다
+    (app/routers/member.py 의 _donor 에 적어 둔 사고가 그랬다).
+    """
+    member = db.get(User, member_id)
+    if member is None or member.role is not Role.MEMBER:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="위원을 찾을 수 없습니다.")
+    tenancy.assert_same(user, member)
+    return member
+
+
+def _donor(db: Session, donor_id: int, user: User) -> User:
+    donor = db.get(User, donor_id)
+    if donor is None or donor.role is not Role.DONOR:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="후원자를 찾을 수 없습니다.")
+    tenancy.assert_same(user, donor)
+    return donor
+
+
+def _shop(db: Session, shop_id: int, user: User) -> Shop:
+    shop = db.get(Shop, shop_id)
+    if shop is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="가게를 찾을 수 없습니다.")
+    tenancy.assert_same(user, shop)
+    return shop
+
+
 @router.get("")
 def dashboard(request: Request, user: User = Depends(office_dep), db: Session = Depends(get_db)):
     policy = retention.current(db, user.council_id)
@@ -471,9 +500,7 @@ def reset_member_password(
     운영자가 위원 계정에 들어갈 수 있는 유일한 길이라, 조용히 일어나지 않게 계정 기록에 남긴다.
     초기화된 계정은 첫 로그인에서 비밀번호를 다시 정해야 하므로 위원이 알아차린다.
     """
-    member = db.get(User, member_id)
-    if member is None or member.role is not Role.MEMBER:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="위원을 찾을 수 없습니다.")
+    member = _member(db, member_id, user)
 
     temp = accounts.reset_password(db, user, member)
     return _show_temp_password(request, user, member, temp, "reset")
@@ -511,9 +538,7 @@ def reset_donor_account(
     donor_id: int, request: Request, user: User = Depends(office_dep), db: Session = Depends(get_db)
 ):
     """후원자 숫자 4자리를 전화번호 뒤 네 자리로 초기화한다."""
-    donor = db.get(User, donor_id)
-    if donor is None or donor.role is not Role.DONOR:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="후원자를 찾을 수 없습니다.")
+    donor = _donor(db, donor_id, user)
 
     try:
         pin = accounts.reset_donor_pin(db, user, donor)
@@ -537,9 +562,7 @@ def set_manager(
     매니저는 위원 중 한 명이다. 누가 맡을지는 정례회의에서 정하고, 운영자가 그 결정을
     화면에 반영한다 — 매니저가 스스로 다른 사람에게 넘길 수는 없다.
     """
-    member = db.get(User, member_id)
-    if member is None or member.role is not Role.MEMBER:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="위원을 찾을 수 없습니다.")
+    member = _member(db, member_id, user)
 
     member.is_manager = bool(grant)
     accounts.log_event(
@@ -558,9 +581,7 @@ def set_manager(
 def toggle_member(
     member_id: int, request: Request, user: User = Depends(office_dep), db: Session = Depends(get_db)
 ):
-    member = db.get(User, member_id)
-    if member is None or member.role is not Role.MEMBER:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="위원을 찾을 수 없습니다.")
+    member = _member(db, member_id, user)
 
     if member.is_active:
         # 담당 케이스를 남긴 채 해제하면 그 가정은 아무도 손댈 수 없게 된다. 담당 위원만
@@ -598,11 +619,9 @@ def handover_cases(
     운영자가 케이스 '내용'을 보는 건 아니다. 바꾸는 것은 담당자뿐이고, 그 사실은
     열람 기록과 같은 자리에 남는다. 권한 매트릭스의 case_assignment 가 이 경계다.
     """
-    member = db.get(User, member_id)
-    to_member = db.get(User, int(to_member_id)) if to_member_id.isdigit() else None
-    if member is None or member.role is not Role.MEMBER:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="위원을 찾을 수 없습니다.")
-    if to_member is None or to_member.role is not Role.MEMBER:
+    member = _member(db, member_id, user)
+    to_member = _member(db, int(to_member_id), user) if to_member_id.isdigit() else None
+    if to_member is None:
         flash(request, "인계받을 위원을 선택해 주세요.")
         return RedirectResponse("/office/members", status_code=303)
     if to_member.id == member.id:
@@ -664,9 +683,7 @@ def certify_shop(
     user: User = Depends(office_dep),
     db: Session = Depends(get_db),
 ):
-    shop = db.get(Shop, shop_id)
-    if shop is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="가게를 찾을 수 없습니다.")
+    shop = _shop(db, shop_id, user)
     shop.is_certified = True
     shop.certified_by_id = user.id
     shop.certified_note = note.strip() or f"{datetime.now(KST):%Y-%m-%d} 인증"
@@ -679,9 +696,7 @@ def certify_shop(
 def revoke_shop(
     shop_id: int, request: Request, user: User = Depends(office_dep), db: Session = Depends(get_db)
 ):
-    shop = db.get(Shop, shop_id)
-    if shop is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="가게를 찾을 수 없습니다.")
+    shop = _shop(db, shop_id, user)
     shop.is_certified = False
     shop.certified_by_id = None
     db.commit()

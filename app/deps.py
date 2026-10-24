@@ -18,7 +18,22 @@ def current_user_optional(request: Request, db: Session = Depends(get_db)) -> Us
     if user is None or not user.is_active:
         request.session.clear()
         return None
+    if not _council_is_open(user):
+        # 협의체가 중지되면 그 안의 식별정보를 읽을 수 있는 사람도 사라져야 한다.
+        # 로그인 시점에만 막으면 이미 들어와 있던 세션이 그대로 살아 있다.
+        request.session.clear()
+        return None
     return user
+
+
+def _council_is_open(user: User) -> bool:
+    """이 사람의 협의체가 열려 있는가.
+
+    슈퍼 관리자는 협의체에 속하지 않으므로 항상 통과한다 — 협의체를 다시 열 수 있는
+    사람이 협의체 상태 때문에 막히면 되돌릴 방법이 없어진다.
+    """
+    council = user.council
+    return council is None or (council.is_active and council.is_approved)
 
 
 def current_user(user: User | None = Depends(current_user_optional)) -> User:

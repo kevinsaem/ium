@@ -2,9 +2,13 @@
 
 운영 모드에서는 seed.py 가 막혀 있으므로 계정은 여기서만 생긴다.
 
-- 첫 운영자: 서버에서 `python -m app.create_office` — 비밀번호는 실행하는 사람이 직접 입력
-- 위원: 운영자가 위촉하며 발급 → 임시 비밀번호 → 첫 로그인에서 반드시 변경
-- 후원자: 위원회 안건 07 결정 전이라 아직 없다
+- 슈퍼 관리자: 서버에서 `python -m app.create_super` — 맨 처음 생기는 계정
+- 협의체 관리자(첫 매니저): 슈퍼 관리자가 협의체를 등록하고 함께 발급
+- 위원: 같은 협의체의 관리자가 발급 → 임시 비밀번호 → 첫 로그인에서 반드시 변경
+- 후원자: 전용 주소로 직접 가입하거나, 위원이 대신 등록 (안건 10·13)
+
+계정은 위에서 아래로만 생긴다. 어느 단계든 자기보다 위를 만들 수는 없고, 자기 협의체
+밖에 사람을 꽂아 넣을 수도 없다 — 슈퍼 관리자만 협의체 경계 밖에 있다.
 
 임시 비밀번호는 발급 응답 한 번에만 실어 보낸다. 세션에 담으면 쿠키를 타고 브라우저에
 남는다 — 식별정보 열람을 리다이렉트 대신 직접 렌더하게 바꾼 것과 같은 이유다.
@@ -31,7 +35,9 @@ from app.security import (
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 ACTION_LABELS = {
+    "create_super": "슈퍼 관리자 계정 생성",
     "create_office": "운영자 계정 생성",
+    "issue_manager": "협의체 관리자 발급",
     "issue": "위원 계정 발급",
     "signup": "후원자 직접 가입",
     "register": "후원자 대신 등록",
@@ -110,6 +116,78 @@ def create_office(
     log_event(db, user, "create_office", note="서버 명령으로 생성")
     db.commit()
     return user
+
+
+def create_super(db: Session, *, name: str, email: str, password: str) -> User:
+    """서버 명령으로 슈퍼 관리자를 만든다 — 시스템에서 맨 처음 생기는 계정.
+
+    협의체에 속하지 않는다(council_id 가 비어 있다). 그래서 app/tenancy.py 의 조회가
+    경계 조건 없이 통과하는 유일한 계정이고, 동시에 식별정보에는 전혀 닿지 못한다
+    (app/permissions.py 의 _SUPER_NEVER).
+
+    화면에서 만들 길을 두지 않는다. 슈퍼 관리자를 앱에서 발급할 수 있게 하면, 계정 하나가
+    새는 순간 그 사람이 협의체를 임의로 만들고 승인할 수 있다.
+    """
+    name, email = _prepare(db, name, email)
+    problem = validate_new_password(password, email=email)
+    if problem:
+        raise AccountError(problem)
+
+    user = User(
+        email=email,
+        name=name,
+        role=Role.SUPER,
+        council_id=None,
+        password_hash=hash_password(password),
+        must_change_password=False,
+    )
+    db.add(user)
+    db.flush()
+    log_event(db, user, "create_super", note="서버 명령으로 생성")
+    db.commit()
+    return user
+
+
+def issue_manager(
+    db: Session, actor: User, council, *, name: str, email: str, note: str | None = None
+) -> tuple[User, str]:
+    """협의체의 첫 관리자를 발급한다 — 슈퍼 관리자만.
+
+    역할은 위원이고 매니저 권한이 켜져 있다. 관리자를 네 번째 역할로 만들지 않은 결정
+    (안건 14)을 협의체가 여러 개가 돼도 그대로 지킨다 — 관리자는 그 동 위원 중 한 명이다.
+
+    협의체당 한 사람이다 (2026-10-24 결정). 두 사람이 되면 '누가 승인했는지' 는 기록에
+    남아도 '누가 승인하는 사람인지' 가 흐려지고, 후원자가 연락할 곳도 둘이 된다.
+    """
+    from app import councils
+
+    if actor.role is not Role.SUPER:
+        raise AccountError("협의체 관리자 발급은 슈퍼 관리자만 할 수 있습니다.")
+
+    existing = councils.manager_of(db, council)
+    if existing is not None:
+        raise AccountError(
+            f"{council.label} 협의체에는 이미 관리자({existing.name})가 있습니다. "
+            "관리자를 바꾸려면 기존 관리자의 권한을 먼저 해제해 주세요."
+        )
+
+    name, email = _prepare(db, name, email)
+    temp = generate_temp_password()
+    user = User(
+        email=email,
+        name=name,
+        role=Role.MEMBER,
+        council_id=council.id,
+        is_manager=True,
+        password_hash=hash_password(temp),
+        must_change_password=True,
+        appointed_note=note,
+    )
+    db.add(user)
+    db.flush()
+    log_event(db, user, "issue_manager", actor, f"{council.label} 관리자")
+    db.commit()
+    return user, temp
 
 
 def issue_member(

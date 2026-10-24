@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="banner">
+  <div class="seal ic-svg">{{ icon('shield') }}</div>
+  <div>
+    <b>협의체 관리</b>
+    <p>협의체를 등록하고 관리자를 발급한 뒤 전용 주소를 엽니다.</p>
+  </div>
+</div>
+
+{% if issued %}
+<div class="card" style="cursor:default;border-color:var(--accent)">
+  <div class="sectit" style="margin-top:0">{{ issued.council.label }} 관리자 계정 발급 완료</div>
+  <div class="meta">
+    <h3>{{ issued.user.name }}</h3>
+    <div class="sub">{{ issued.user.email }}</div>
+  </div>
+  <div class="field" style="margin:11px 0 0">
+    <label>임시 비밀번호 (이 화면에서만 보입니다)</label>
+    <input value="{{ issued.temp }}" readonly onclick="this.select()">
+  </div>
+  <p class="legend">
+    이 값은 저장되지 않습니다. 지금 관리자께 직접 전해 주세요. 관리자는 첫 로그인에서
+    새 비밀번호를 정해야 앱을 쓸 수 있습니다.
+  </p>
+</div>
+{% endif %}
+
+{% if waiting %}
+<p class="legend" style="margin:0 0 10px">
+  승인 대기 {{ waiting | length }}곳. <b>승인하면 전용 주소가 열립니다</b> — 그 동 주민이
+  주소로 들어와 가입할 수 있게 되므로, 가입한 분을 승인할 관리자가 먼저 있어야 합니다.
+</p>
+{% endif %}
+
+<div class="sectit">등록된 협의체 · {{ rows | length }}곳</div>
+{% for row in rows %}
+<div class="card" style="cursor:default">
+  <div class="row">
+    <div class="thumb ic-svg">{{ icon('compass') }}</div>
+    <div class="meta">
+      <h3>{{ row.council.label }}</h3>
+      <div class="sub">
+        전용 주소 /c/{{ row.council.slug }}
+        {% if row.council.region_code %} · 행정구역 {{ row.council.region_code }}{% endif %}
+      </div>
+      <div class="foot">
+        {% if not row.council.is_active %}
+        <span class="tag line">중지</span>
+        {% elif row.council.is_approved %}
+        <span class="tag fill">운영 중</span>
+        {% else %}
+        <span class="tag line">승인 대기</span>
+        {% endif %}
+        <span class="tag soft">위원 {{ row.counts.members }}명</span>
+        <span class="tag soft">후원자 {{ row.counts.donors }}명</span>
+      </div>
+      <div class="sub">
+        관리자 {% if row.manager %}{{ row.manager.name }} ({{ row.manager.email }}){% else %}없음{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if not row.manager %}
+  <form method="post" action="/super/councils/{{ row.council.id }}/manager">
+    <div class="field" style="margin:11px 0 0">
+      <label>관리자 이름</label>
+      <input name="name" placeholder="예) 이관희" required>
+    </div>
+    <div class="field">
+      <label>이메일 (로그인 아이디)</label>
+      <input type="email" name="email" placeholder="예) manager@example.kr" required>
+    </div>
+    <div class="field">
+      <label>메모 (선택)</label>
+      <input name="note" placeholder="예) 2026-12-10 정례회의 선임">
+    </div>
+    <button class="btn" type="submit">관리자 발급하고 임시 비밀번호 받기</button>
+  </form>
+  {% endif %}
+
+  {% if row.council.is_active and not row.council.is_approved and row.manager %}
+  <form method="post" action="/super/councils/{{ row.council.id }}/approve">
+    <button class="btn" type="submit" style="width:100%">승인하고 전용 주소 열기</button>
+  </form>
+  {% endif %}
+
+  {% if row.council.is_active %}
+  <form method="post" action="/super/councils/{{ row.council.id }}/suspend"
+        onsubmit="return confirm('{{ row.council.label }} 협의체를 중지합니다. 그 동의 위원과 후원자는 로그인할 수 없게 됩니다. 기록은 지워지지 않습니다. 계속할까요?')">
+    <div class="field" style="margin:11px 0 0">
+      <label>중지 사유</label>
+      <input name="reason" placeholder="예) 파일럿 종료 · 담당자 공백" required>
+    </div>
+    <button class="btn ghost sm" type="submit" style="width:100%">협의체 중지</button>
+  </form>
+  {% else %}
+  <form method="post" action="/super/councils/{{ row.council.id }}/resume">
+    <button class="btn ghost sm" type="submit" style="width:100%">다시 열기</button>
+  </form>
+  {% endif %}
+</div>
+{% else %}
+<div class="empty">등록된 협의체가 없습니다. 아래에서 첫 협의체를 등록하세요.</div>
+{% endfor %}
+
+<div class="sectit">협의체 등록</div>
+<form method="post" action="/super/councils">
+  <div class="field">
+    <label>시·군·구</label>
+    <input name="region" placeholder="예) 안산시 단원구" required maxlength="60">
+  </div>
+  <div class="field">
+    <label>동 이름</label>
+    <input name="dong" placeholder="예) 선부3동" required maxlength="40">
+  </div>
+  <div class="field">
+    <label>전용 주소</label>
+    <input name="slug" placeholder="예) sunbu3" required maxlength="40">
+  </div>
+  <div class="field">
+    <label>행정구역 코드 (선택)</label>
+    <input name="region_code" placeholder="예) 4128058000" maxlength="20">
+  </div>
+  <button class="btn" type="submit">협의체 등록</button>
+</form>
+<p class="legend">
+  전용 주소는 후원자에게 전하는 가입 주소(<b>/c/주소</b>)에 들어갑니다. 영소문자로 시작하고
+  영소문자·숫자·하이픈만 씁니다. 한 번 알리고 나면 바꾸기 어려우니 짧고 받아 적기 쉽게
+  지어 주세요.<br>
+  등록만으로는 열리지 않습니다 — 관리자를 발급하고 승인해야 주소가 살아납니다.
+</p>
+{% endblock %}

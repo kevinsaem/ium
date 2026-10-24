@@ -14,7 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.db import is_migrated
 from app.deps import PasswordChangeRequired
-from app.routers import account, auth, donor, member, office
+from app.routers import account, auth, donor, member, office, superadmin
 
 
 @asynccontextmanager
@@ -46,6 +46,7 @@ app.include_router(auth.router)
 app.include_router(donor.router)
 app.include_router(member.router)
 app.include_router(office.router)
+app.include_router(superadmin.router)
 
 
 def _back_to(request: Request) -> str:
@@ -57,8 +58,14 @@ def _back_to(request: Request) -> str:
     referer = request.headers.get("referer")
     if referer:
         parts = urlsplit(referer)
-        if not parts.netloc or parts.netloc == request.url.netloc:
-            return urlunsplit(("", "", parts.path or "/", parts.query, ""))
+        if parts.netloc and parts.netloc != request.url.netloc:
+            return "/"
+        path = parts.path or "/"
+        # 직전 화면이 지금 실패한 화면 자체일 때 그리로 되돌리면 같은 오류가 다시 나고,
+        # 그 응답이 또 같은 곳을 가리켜 리다이렉트가 무한히 돈다. 주소를 잘못 받아 적어
+        # 없는 협의체로 들어온 분에게 실제로 그렇게 됐다.
+        if path != request.url.path:
+            return urlunsplit(("", "", path, parts.query, ""))
     return "/"
 
 

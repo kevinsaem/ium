@@ -327,3 +327,91 @@ def test_the_header_shows_the_viewers_own_dong(client, db, seeded, neighbor):
     _login(client, "member1@ium.test")
     body = client.get("/member").text
     assert "선부3동" in body
+
+
+# --- 주소에 id 를 직접 넣는 길 -------------------------------------------------
+#
+# 목록은 협의체로 걸러진다. 문제는 그 목록을 거치지 않는 길이다. 새 협의체의 관리자가
+# /member/donors/<옆 동 후원자 id>/approve 로 옆 동 후원자를 승인할 수 있었다. 실제
+# 서버에서 사슬을 끝까지 걸어 보다가 나왔고, 테스트는 전부 통과하고 있었다.
+#
+# 그래서 라우트별로 확인을 붙이는 대신 조회를 헬퍼로 모았다. 아래 테스트는 그 헬퍼를
+# 우회하는 라우트가 새로 생기면 깨진다.
+
+
+def _manager_of_neighbor(client, neighbor):
+    client.post("/login", data={"email": "member@sunbu2.test", "password": "ium1234"})
+
+
+def test_a_manager_cannot_approve_a_donor_across_the_line(client, db, seeded, neighbor):
+    """승인은 매니저 권한이지만, 자기 협의체 안에서만이다 (안건 10·14)."""
+    waiting = User(
+        phone="01088880001",
+        password_hash=hash_password("2026"),
+        name="선부3동 대기자",
+        role=Role.DONOR,
+        council_id=seeded["council"].id,
+    )
+    db.add(waiting)
+    db.commit()
+
+    _manager_of_neighbor(client, neighbor)
+    body = client.post(f"/member/donors/{waiting.id}/approve").text
+    db.expire_all()
+
+    assert "다른 협의체" in body
+    assert db.get(User, waiting.id).approved_at is None
+
+
+def test_every_manager_action_stops_at_the_line(client, db, seeded, neighbor):
+    """승인·승인취소·메모·잠금해제 — 대상이 옆 동이면 전부 막힌다."""
+    ours = seeded["donor"]
+    _manager_of_neighbor(client, neighbor)
+
+    assert "다른 협의체" in client.post(f"/member/donors/{ours.id}/approve").text
+    assert "다른 협의체" in client.post(
+        f"/member/donors/{ours.id}/unapprove", data={"reason": "아무 이유"}
+    ).text
+    assert "다른 협의체" in client.post(
+        f"/member/donors/{ours.id}/notes", data={"body": "남의 동 메모"}
+    ).text
+    assert "다른 협의체" in client.post(f"/member/manage/unlock/{ours.id}").text
+
+    from app.models import DonorNote
+
+    db.expire_all()
+    assert db.get(User, ours.id).approved_at is not None   # 승인 취소가 걸리지 않았다
+    assert db.get(User, ours.id).locked_at is None         # 잠금 해제도 손대지 못했다
+    assert db.scalars(select(DonorNote).where(DonorNote.donor_id == ours.id)).all() == []
+
+
+def test_a_member_cannot_match_a_neighbors_offer_through_the_url(client, db, seeded, neighbor):
+    """케이스는 우리 것, 나눔글은 옆 동 — 매칭 라우트에서 막힌다."""
+    from app.models import Match
+
+    case = db.scalar(select(Case).where(Case.council_id == seeded["council"].id))
+    _login(client, "member1@ium.test")
+    body = client.post(
+        "/member/matches",
+        data={"case_id": str(case.id), "offer_id": str(neighbor["offer"].id), "note": ""},
+    ).text
+
+    assert "다른 협의체" in body
+    assert db.scalar(select(Match)) is None
+
+
+def test_the_office_screens_stop_at_the_line(client, db, seeded, neighbor):
+    """운영자 동작도 자기 협의체 안이다 — 위원 위촉 해제·비밀번호 초기화·가게 인증."""
+    other_member = neighbor["member"]
+    _login(client, "office@ium.test")
+
+    assert "다른 협의체" in client.post(f"/office/members/{other_member.id}/reset").text
+    assert "다른 협의체" in client.post(f"/office/members/{other_member.id}/toggle").text
+    assert "다른 협의체" in client.post(
+        f"/office/members/{other_member.id}/manager", data={"grant": "1"}
+    ).text
+    assert "다른 협의체" in client.post(f"/office/shops/{neighbor['shop'].id}/certify").text
+
+    db.expire_all()
+    assert db.get(User, other_member.id).is_active is True
+    assert neighbor["shop"].is_certified is True  # 이미 인증된 상태가 바뀌지 않았다
