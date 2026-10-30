@@ -56,8 +56,8 @@ def test_without_a_start_date_counting_is_cumulative(db):
 
 
 def test_window_runs_one_month_from_the_start(db, seeded, client):
-    _login(client, "office@ium.test")
-    client.post("/office/policy/pilot", data={"start": "2026-10-15", "months": "1"})
+    _login(client, "member1@ium.test")
+    client.post("/manage/policy/pilot", data={"start": "2026-10-15", "months": "1"})
 
     db.expire_all()
     win = pilot.window(retention.current(db))
@@ -86,10 +86,10 @@ def test_days_left_turns_negative_after_the_end(db):
 
 
 def test_clearing_the_start_date_returns_to_cumulative(db, seeded, client):
-    _login(client, "office@ium.test")
-    client.post("/office/policy/pilot", data={"start": "2026-10-15", "months": "1"})
+    _login(client, "member1@ium.test")
+    client.post("/manage/policy/pilot", data={"start": "2026-10-15", "months": "1"})
     body = client.post(
-        "/office/policy/pilot", data={"start": "", "months": "1"}, follow_redirects=True
+        "/manage/policy/pilot", data={"start": "", "months": "1"}, follow_redirects=True
     ).text
 
     assert "누적" in body
@@ -107,16 +107,16 @@ def test_clearing_the_start_date_returns_to_cumulative(db, seeded, client):
     ],
 )
 def test_bad_pilot_input_is_guided(db, seeded, client, data, expect):
-    _login(client, "office@ium.test")
-    body = client.post("/office/policy/pilot", data=data, follow_redirects=True).text
+    _login(client, "member1@ium.test")
+    body = client.post("/manage/policy/pilot", data=data, follow_redirects=True).text
     assert expect in body
 
 
-def test_only_office_can_set_the_pilot_period(db, seeded, client):
-    for email in ("member1@ium.test", "blue@ium.test"):
+def test_only_the_manager_can_set_the_pilot_period(db, seeded, client):
+    for email in ("member2@ium.test", "member3@ium.test", "blue@ium.test"):
         _login(client, email)
         res = client.post(
-            "/office/policy/pilot", data={"start": "2026-10-15", "months": "1"},
+            "/manage/policy/pilot", data={"start": "2026-10-15", "months": "1"},
             follow_redirects=False,
         )
         assert res.headers["location"] == "/", email
@@ -139,7 +139,7 @@ def test_funnel_separates_every_stage(db, seeded):
     match = matching.propose(db, case, offer, seeded["member1"])
     matching.mark_delivered(db, match, seeded["member1"])
 
-    counts = pilot.funnel(db, pilot.window(retention.current(db)), seeded["office"])
+    counts = pilot.funnel(db, pilot.window(retention.current(db)), seeded["member1"])
 
     assert counts["donors_waiting"] == 1  # 방금 등록한 사람
     assert counts["offers_posted"] >= 1
@@ -155,7 +155,7 @@ def test_cancelled_matches_are_counted_separately(db, seeded):
     match = matching.propose(db, case, offer, seeded["member1"])
     matching.cancel(db, match, seeded["member1"], "가정 사정")
 
-    counts = pilot.funnel(db, pilot.window(retention.current(db)), seeded["office"])
+    counts = pilot.funnel(db, pilot.window(retention.current(db)), seeded["member1"])
     assert counts["cancelled"] == 1
     assert counts["matched"] == 0  # 취소된 건은 매칭 성과로 세지 않는다
 
@@ -174,7 +174,7 @@ def test_counting_is_limited_to_the_pilot_window(db, seeded):
     policy.pilot_months = 1
     db.commit()
 
-    counts = pilot.funnel(db, pilot.window(policy), seeded["office"])
+    counts = pilot.funnel(db, pilot.window(policy), seeded["member1"])
     assert counts["offers_posted"] == 1  # inside 만. 시드 나눔글도 기간 밖이다.
     assert before.id != inside.id
 
@@ -194,7 +194,7 @@ def test_delivered_count_is_the_shared_number(db, seeded):
     match = matching.propose(db, case, offer, seeded["member1"])
     matching.mark_delivered(db, match, seeded["member1"])
 
-    counts = pilot.funnel(db, pilot.window(retention.current(db)), seeded["office"])
+    counts = pilot.funnel(db, pilot.window(retention.current(db)), seeded["member1"])
     assert counts["delivered"] == 1
 
 
@@ -202,24 +202,24 @@ def test_delivered_count_is_the_shared_number(db, seeded):
 
 
 def test_dashboard_shows_every_stage(db, seeded, client):
-    _login(client, "office@ium.test")
-    html = client.get("/office").text
+    _login(client, "member1@ium.test")
+    html = client.get("/manage").text
 
     for label in ("후원자 승인", "승인 대기", "나눔글 접수", "위원 매칭", "매칭 취소", "전달 완료"):
         assert label in html, label
 
 
 def test_dashboard_shows_no_target_numbers(db, seeded, client):
-    _login(client, "office@ium.test")
-    html = client.get("/office").text
+    _login(client, "member1@ium.test")
+    html = client.get("/manage").text
     assert "파일럿 목표 대비" not in html
     assert "목표 숫자는 미리 정하지 않습니다" in html
 
 
 def test_dashboard_shows_the_period_and_days_left(db, seeded, client):
-    _login(client, "office@ium.test")
-    assert "기간 미설정" in client.get("/office").text
+    _login(client, "member1@ium.test")
+    assert "기간 미설정" in client.get("/manage").text
 
-    client.post("/office/policy/pilot", data={"start": "2026-10-15", "months": "1"})
-    html = client.get("/office").text
+    client.post("/manage/policy/pilot", data={"start": "2026-10-15", "months": "1"})
+    html = client.get("/manage").text
     assert "2026-10-15" in html and "2026-11-15" in html

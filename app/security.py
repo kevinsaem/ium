@@ -63,7 +63,7 @@ def validate_pin(pin: str, *, phone: str | None = None) -> str | None:
 
 
 MIN_PASSWORD_LENGTH = 10
-# 헷갈리는 글자(0·o, 1·l·i)를 뺐다. 운영자가 소리 내어 불러 주거나 손으로 적어 전하기 때문이다.
+# 헷갈리는 글자(0·o, 1·l·i)를 뺐다. 관리자가 소리 내어 불러 주거나 손으로 적어 전하기 때문이다.
 _TEMP_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
 
 

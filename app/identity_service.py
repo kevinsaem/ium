@@ -11,18 +11,26 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models import Case, CaseIdentity, IdentityAccessLog, Role, User
+from app import permissions
 from app.permissions import can
 from app.security import decrypt, encrypt
 
 
 def _authorize(actor: User, case: Case, action: str) -> None:
-    if not can(actor.role, "case_identity", action):
+    """식별정보에 닿을 수 있는 사람은 그 가정의 담당 위원뿐이다.
+
+    권한 표(app/permissions.py)에서 이 자리의 행위자는 '위원' 이 아니라 '담당 위원'
+    (CASE_MEMBER)이다. 담당인지는 케이스가 정해져야 알 수 있으므로 표가 대신 묻지 못하고,
+    여기서 확인한다 — 표와 코드가 갈라지지 않게 두 줄을 붙여 둔다.
+    """
+    if actor.role is not Role.MEMBER or not can(permissions.CASE_MEMBER, "case_identity", action):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             detail="식별정보는 협의체 위원만 접근할 수 있습니다.",
         )
     # 위원이라도 자기가 담당한 케이스만. 동네 전체 위원이 모든 가정을 열람하는 걸 막는다.
-    if actor.role is Role.MEMBER and case.member_id != actor.id:
+    # 관리자도 예외가 아니다 — 관리자는 위원 중 한 명이고, 남의 가정은 못 읽는다.
+    if case.member_id != actor.id:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             detail="담당 위원이 아닌 케이스의 식별정보는 열람할 수 없습니다.",
@@ -147,15 +155,18 @@ def purge_identity(db: Session, case: Case, actor: User, reason: str) -> None:
 
 
 def purge_expired_identity(db: Session, case: Case, actor: User, reason: str) -> None:
-    """보관 기한이 지난 식별정보를 운영자가 일괄 파기한다 (위원회 결정, 안건 01).
+    """보관 기한이 지난 식별정보를 관리자가 일괄 파기한다 (위원회 결정, 안건 01).
 
     열람 권한과는 다른 권한이다. 이 함수는 복호화하지 않는다 — 내용을 보지 않고 지우기만
-    한다. 그래서 운영자가 법정 보관 기한을 집행할 수 있으면서도 '운영자는 식별정보를 볼 수
-    없다'는 원칙이 그대로 유지된다. 권한 매트릭스의 identity_retention 이 이 경계다.
+    한다. 권한 표의 identity_retention 이 그 경계다.
+
+    운영자 역할을 폐기하면서 집행 주체가 관리자로 왔다 (2026-10-24 결정). 관리자도 위원이라
+    자기 담당 케이스는 읽을 수 있지만, 그건 담당 위원으로서의 권한이고 이 함수와는 다른
+    길이다. 여기서는 어느 케이스든 내용을 열지 않고 지운다.
     """
-    if not can(actor.role, "identity_retention", "write"):
+    if not can(actor, "identity_retention", "write"):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
-            detail="보관 기한 집행은 운영자만 할 수 있습니다.",
+            detail="보관 기한 집행은 협의체 관리자만 할 수 있습니다.",
         )
     _destroy(db, case, actor, reason)

@@ -40,13 +40,19 @@ class CouncilScoped:
 class Role(str, enum.Enum):
     """권한.
 
-    앞의 셋은 한 동 협의체 안에서 성립한다 — 그 바깥을 보는 권한이 SUPER 다.
-    매니저는 역할이 아니라 위원에게 주는 권한이다 (안건 14, User.is_manager).
+    역할이 셋이다. 앞의 둘은 한 동 협의체 안에서 성립하고, 그 바깥을 보는 권한이 SUPER 다.
+
+    관리자(매니저)는 역할이 아니라 위원에게 주는 권한이다 (안건 14, User.is_manager).
+    운영자(OFFICE) 역할은 폐기했다 — 관리자 = 매니저 = 협의체당 한 사람으로 정리되면서
+    (2026-10-24 결정) 하던 일이 전부 관리자에게 왔고, 역할을 하나 줄이면 개인정보 사전
+    승인에서 설명할 것도 하나 줄어든다.
+
+    역할을 늘리기 전에 "그 사람이 위원과 다른 자료를 보는가" 를 먼저 물을 것. 보는 자료가
+    같고 할 수 있는 일만 다르다면 역할이 아니라 권한 플래그다.
     """
 
     DONOR = "donor"    # 후원자 (소상공인·주민)
-    MEMBER = "member"  # 협의체 위원
-    OFFICE = "office"  # 협의체 운영자
+    MEMBER = "member"  # 협의체 위원 — 관리자도 여기에 속한다
     SUPER = "super"    # 슈퍼 관리자 — 협의체 경계를 넘는다. 식별정보는 여전히 못 본다.
 
     @property
@@ -54,13 +60,12 @@ class Role(str, enum.Enum):
         return {
             "donor": "나눔 후원자",
             "member": "협의체 위원",
-            "office": "협의체 운영자",
             "super": "슈퍼 관리자",
         }[self.value]
 
     @property
     def tag(self) -> str:
-        return {"donor": "후원자", "member": "위원", "office": "운영자", "super": "슈퍼"}[self.value]
+        return {"donor": "후원자", "member": "위원", "super": "슈퍼"}[self.value]
 
     @property
     def is_scoped(self) -> bool:

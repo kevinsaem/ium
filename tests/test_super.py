@@ -97,7 +97,7 @@ def test_registering_a_council_does_not_open_it(db, boss):
 
 def test_only_the_super_admin_registers_a_council(db, seeded):
     """운영자도 매니저도 다른 동을 만들 수 없다 — 자기 협의체 안의 사람이다."""
-    for key in ("office", "member1"):
+    for key in ("member3", "member1"):
         with pytest.raises(councils.CouncilError):
             councils.register(db, seeded[key], region="안산시", dong="아무동", slug="nope")
 
@@ -170,7 +170,7 @@ def test_a_council_has_exactly_one_manager(db, boss):
 def test_only_the_super_admin_issues_the_first_manager(db, seeded, boss):
     council = db.scalar(select(Council).where(Council.slug == "sunbu3"))
     with pytest.raises(accounts.AccountError, match="슈퍼 관리자만"):
-        accounts.issue_manager(db, seeded["office"], council, name="x", email="x@ium.test")
+        accounts.issue_manager(db, seeded["member1"], council, name="x", email="x@ium.test")
 
 
 def test_suspending_a_council_keeps_the_records(db, seeded, boss):
@@ -219,7 +219,7 @@ def test_the_super_admin_cannot_walk_into_a_council(client, db, seeded, boss):
     경계를 넘는 조회 권한이 있다는 것과, 그 동 위원의 화면을 쓸 수 있다는 것은 다르다.
     """
     _login(client, "root@ium.test", "ium-root-2026")
-    for path in ("/member", "/member/donors", "/office", "/donor"):
+    for path in ("/member", "/member/donors", "/manage", "/donor"):
         body = client.get(path).text
         assert "선부3동 A가정" not in body
         assert "최세탁" not in body
@@ -261,7 +261,9 @@ def test_the_temporary_password_never_reaches_the_cookie(client, db, boss):
     })
 
     import re
-    temp = re.search(r'<input value="([^"]+)" readonly', res.text).group(1)
+    match = re.search(r'class="temp-password"[^>]*>([a-z0-9-]+)<', res.text)
+    assert match, "임시 비밀번호가 화면에 없습니다"
+    temp = match.group(1)
     cookie = client.cookies.get("session") or ""
     assert cookie, "세션 쿠키가 없으면 이 테스트는 아무것도 증명하지 않는다"
     assert temp not in cookie
@@ -272,7 +274,7 @@ def test_the_temporary_password_never_reaches_the_cookie(client, db, boss):
 
 
 def test_nobody_else_can_open_the_super_screen(client, db, seeded, boss):
-    for email in ("office@ium.test", "member1@ium.test"):
+    for email in ("member1@ium.test", "member1@ium.test"):
         _login(client, email)
         assert "협의체 등록" not in client.get("/super").text
 
@@ -374,7 +376,7 @@ def test_a_suspended_councils_people_cannot_log_in(client, db, seeded, boss):
 def test_an_orphan_account_cannot_be_made_by_the_app(db, seeded):
     """위원 발급은 발급한 사람의 협의체로만 들어간다 — 소속 없는 계정이 앱에서 생기지 않는다."""
     issued, _ = accounts.issue_member(
-        db, seeded["office"], name="새 위원", email="new@ium.test"
+        db, seeded["member1"], name="새 위원", email="new@ium.test"
     )
     assert issued.council_id == seeded["council"].id
 

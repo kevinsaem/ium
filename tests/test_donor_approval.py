@@ -33,9 +33,9 @@ def _waiting_donor(db) -> User:
 def test_the_old_offer_review_routes_are_gone(db, seeded, client):
     """안건 05 의 나눔글 심사는 폐기됐다. 길이 남아 있으면 둘 중 어느 쪽이 사실인지 흐려진다."""
     offer_id = db.scalar(select(Offer.id))
-    _login(client, "office@ium.test")
+    _login(client, "member1@ium.test")
 
-    for path in (f"/office/offers/{offer_id}/approve", f"/office/offers/{offer_id}/reject"):
+    for path in (f"/manage/offers/{offer_id}/approve", f"/manage/offers/{offer_id}/reject"):
         res = client.post(path, data={"note": "사유"}, follow_redirects=False)
         assert res.status_code in (404, 405), path
 

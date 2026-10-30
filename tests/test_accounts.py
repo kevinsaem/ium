@@ -81,28 +81,18 @@ def test_local_part_of_the_email_is_refused_too():
     assert validate_new_password("member1234", email="member1234@ium.test") is not None
 
 
-# --- 첫 운영자 (서버 명령) --------------------------------------------------
+# --- 첫 계정 (서버 명령) -----------------------------------------------------
+#
+# 운영자 역할을 폐기하면서(2026-10-24 결정) 서버 명령으로 만드는 첫 계정은 슈퍼 관리자가
+# 됐다. 그 길은 tests/test_super.py 가 확인한다 — 명령줄뿐이고 비밀번호를 인자로 받지
+# 않는다는 것까지.
 
 
-def test_create_office_makes_a_usable_account(db, client):
-    user = accounts.create_office(
-        db, name="협의체 사무국", email="Office@Example.KR", password="첫-운영자-비밀번호"
-    )
-
-    assert user.role is Role.OFFICE
-    assert user.email == "office@example.kr"  # 로그인이 소문자로 찾으므로 저장도 소문자
-    # 본인이 정한 비밀번호라 변경을 강제하지 않는다
-    assert user.must_change_password is False
-
-    res = _login(client, "office@example.kr", "첫-운영자-비밀번호")
-    assert res.headers["location"] == "/office"
-
-
-def test_create_office_is_recorded_without_an_actor(db):
-    user = accounts.create_office(db, name="사무국", email="a@b.kr", password="충분히-긴-비밀번호")
+def test_create_super_is_recorded_without_an_actor(db):
+    user = accounts.create_super(db, name="사무국", email="a@b.kr", password="충분히-긴-비밀번호")
 
     event = db.scalar(select(AccountEvent).where(AccountEvent.user_id == user.id))
-    assert event.action == "create_office"
+    assert event.action == "create_super"
     assert event.actor_id is None  # 서버 명령에는 행위자가 없다
 
 
@@ -114,20 +104,20 @@ def test_create_office_is_recorded_without_an_actor(db):
         ({"name": "사무국", "email": "a@b.kr", "password": "short"}, "10자 이상"),
     ],
 )
-def test_create_office_refuses_bad_input(db, kwargs, expect):
+def test_create_super_refuses_bad_input(db, kwargs, expect):
     with pytest.raises(accounts.AccountError) as exc:
-        accounts.create_office(db, **kwargs)
+        accounts.create_super(db, **kwargs)
     assert expect in str(exc.value)
     assert db.scalar(select(User).where(User.email == "a@b.kr")) is None
 
 
 def test_duplicate_email_is_refused_case_insensitively(db, seeded):
     with pytest.raises(accounts.AccountError) as exc:
-        accounts.create_office(db, name="중복", email="OFFICE@ium.test", password="충분히-긴-비밀번호")
+        accounts.create_super(db, name="중복", email="MEMBER3@ium.test", password="충분히-긴-비밀번호")
     assert "이미 쓰고 있는" in str(exc.value)
 
 
-def test_create_office_command_runs_in_production_mode(tmp_path):
+def test_create_super_command_runs_in_production_mode(tmp_path):
     """seed.py 와 달리 이 명령은 운영에서 돌아야 한다. 운영 첫 계정을 만들 유일한 길이다."""
     db_path = tmp_path / "prod.db"
     env = {
@@ -148,15 +138,15 @@ def test_create_office_command_runs_in_production_mode(tmp_path):
 
     # 비밀번호는 명령줄이 아니라 표준입력으로 — 셸 기록과 프로세스 목록에 남지 않게
     made = run(
-        ["-m", "app.create_office", "--email", "office@example.kr", "--name", "사무국"],
+        ["-m", "app.create_super", "--email", "root@example.kr", "--name", "사무국"],
         input="운영-첫-비밀번호-2026\n",
     )
     assert made.returncode == 0, made.stderr
-    assert "office@example.kr" in made.stdout
+    assert "root@example.kr" in made.stdout
 
     # 같은 이메일로 또 만들면 거부
     again = run(
-        ["-m", "app.create_office", "--email", "office@example.kr", "--name", "사무국"],
+        ["-m", "app.create_super", "--email", "root@example.kr", "--name", "사무국"],
         input="운영-첫-비밀번호-2026\n",
     )
     assert again.returncode != 0
@@ -166,10 +156,10 @@ def test_create_office_command_runs_in_production_mode(tmp_path):
 # --- 위원 계정 발급 ---------------------------------------------------------
 
 
-def test_office_issues_a_member_account(db, seeded, client):
-    _login(client, "office@ium.test")
+def test_the_manager_issues_a_member_account(db, seeded, client):
+    _login(client, "member1@ium.test")
     body = client.post(
-        "/office/members",
+        "/manage/members",
         data={"name": "박신입", "email": "New@ium.test", "note": "2026-09-19 위촉"},
     ).text
 
@@ -179,7 +169,7 @@ def test_office_issues_a_member_account(db, seeded, client):
     assert member.appointed_note == "2026-09-19 위촉"
 
     # 임시 비밀번호가 화면에 한 번 보이고, 그 값으로 실제 로그인이 된다
-    assert "박신입" in body and "한 번만 보입니다" in body
+    assert "박신입" in body and "이 화면에서만 보입니다" in body
     temp = _temp_from(body)
     assert verify_password(temp, member.password_hash)
 
@@ -194,8 +184,8 @@ def _temp_from(html: str) -> str:
 
 def test_temp_password_never_enters_the_session_cookie(db, seeded, client):
     """식별정보와 같은 이유다 — 세션은 쿠키에 담기고, 서명만 되어 있어 열어 보면 읽힌다."""
-    _login(client, "office@ium.test")
-    body = client.post("/office/members", data={"name": "박신입", "email": "new@ium.test"}).text
+    _login(client, "member1@ium.test")
+    body = client.post("/manage/members", data={"name": "박신입", "email": "new@ium.test"}).text
     temp = _temp_from(body)
 
     cookie = _session_cookie(client)
@@ -204,39 +194,40 @@ def test_temp_password_never_enters_the_session_cookie(db, seeded, client):
 
 
 def test_issued_page_is_not_cached(db, seeded, client):
-    _login(client, "office@ium.test")
-    res = client.post("/office/members", data={"name": "박신입", "email": "new@ium.test"})
+    _login(client, "member1@ium.test")
+    res = client.post("/manage/members", data={"name": "박신입", "email": "new@ium.test"})
     assert "no-store" in res.headers.get("cache-control", "")
 
 
 def test_issuing_is_recorded_with_the_office_as_actor(db, seeded, client):
-    _login(client, "office@ium.test")
-    client.post("/office/members", data={"name": "박신입", "email": "new@ium.test", "note": "위촉"})
+    _login(client, "member1@ium.test")
+    client.post("/manage/members", data={"name": "박신입", "email": "new@ium.test", "note": "위촉"})
 
     member = db.scalar(select(User).where(User.email == "new@ium.test"))
     event = db.scalar(select(AccountEvent).where(AccountEvent.user_id == member.id))
     assert event.action == "issue"
-    assert event.actor_id == seeded["office"].id
+    assert event.actor_id == seeded["member1"].id
     assert event.note == "위촉"
 
 
 def test_bad_issue_input_is_guided_not_500(db, seeded, client):
-    _login(client, "office@ium.test")
+    _login(client, "member1@ium.test")
     before = len(list(db.scalars(select(User)).all()))
 
     body = client.post(
-        "/office/members", data={"name": "박신입", "email": "member1@ium.test"}, follow_redirects=True
+        "/manage/members", data={"name": "박신입", "email": "member1@ium.test"}, follow_redirects=True
     ).text
 
     assert "이미 쓰고 있는" in body
     assert len(list(db.scalars(select(User)).all())) == before
 
 
-def test_only_office_can_issue_accounts(db, seeded, client):
-    for email in ("member1@ium.test", "blue@ium.test"):
+def test_only_the_manager_can_issue_accounts(db, seeded, client):
+    """위원이라도 관리자가 아니면 계정을 발급할 수 없다."""
+    for email in ("member2@ium.test", "member3@ium.test", "blue@ium.test"):
         _login(client, email)
         res = client.post(
-            "/office/members", data={"name": "몰래", "email": "sneak@ium.test"}, follow_redirects=False
+            "/manage/members", data={"name": "몰래", "email": "sneak@ium.test"}, follow_redirects=False
         )
         assert res.headers["location"] == "/", email
     assert db.scalar(select(User).where(User.email == "sneak@ium.test")) is None
@@ -246,8 +237,8 @@ def test_only_office_can_issue_accounts(db, seeded, client):
 
 
 def _issue(client, db, email: str = "new@ium.test") -> tuple[User, str]:
-    _login(client, "office@ium.test")
-    body = client.post("/office/members", data={"name": "박신입", "email": email}).text
+    _login(client, "member1@ium.test")
+    body = client.post("/manage/members", data={"name": "박신입", "email": email}).text
     client.get("/logout")
     return db.scalar(select(User).where(User.email == email)), _temp_from(body)
 
@@ -263,7 +254,7 @@ def test_every_other_screen_is_blocked_until_the_password_changes(db, seeded, cl
     member, temp = _issue(client, db)
     _login(client, member.email, temp)
 
-    for path in ("/member", "/member/matches", "/member/report", "/office"):
+    for path in ("/member", "/member/matches", "/member/report", "/manage"):
         res = client.get(path, follow_redirects=False)
         assert res.headers["location"] == "/account/password", path
 
@@ -381,9 +372,9 @@ def test_password_screen_needs_a_login(db, seeded, client):
 
 def test_office_resets_a_forgotten_password(db, seeded, client):
     member = seeded["member1"]
-    _login(client, "office@ium.test")
+    _login(client, "member1@ium.test")
 
-    body = client.post(f"/office/members/{member.id}/reset").text
+    body = client.post(f"/manage/members/{member.id}/reset").text
     temp = _temp_from(body)
     client.get("/logout")
 
@@ -392,24 +383,28 @@ def test_office_resets_a_forgotten_password(db, seeded, client):
 
 
 def test_reset_is_recorded_so_it_cannot_happen_quietly(db, seeded, client):
-    """운영자가 위원 계정에 들어갈 수 있는 유일한 길이다. 막을 수 없으니 기록을 남긴다."""
-    member = seeded["member1"]
-    _login(client, "office@ium.test")
-    client.post(f"/office/members/{member.id}/reset")
+    """관리자가 위원 계정에 들어갈 수 있는 유일한 길이다. 막을 수 없으니 기록을 남긴다.
+
+    대상을 member2 로 둔다 — 관리자가 자기 비밀번호를 초기화하면 그 뒤의 모든 화면이
+    비밀번호 변경으로 리다이렉트돼, 기록을 확인할 수 없다.
+    """
+    member = seeded["member2"]
+    _login(client, "member1@ium.test")
+    client.post(f"/manage/members/{member.id}/reset")
 
     event = db.scalar(
         select(AccountEvent)
         .where(AccountEvent.user_id == member.id, AccountEvent.action == "reset")
     )
-    assert event is not None and event.actor_id == seeded["office"].id
+    assert event is not None and event.actor_id == seeded["member1"].id
 
-    assert "비밀번호 초기화" in client.get("/office/members").text
+    assert "비밀번호 초기화" in client.get("/manage/people").text
 
 
 def test_reset_refuses_a_non_member(db, seeded, client):
-    _login(client, "office@ium.test")
+    _login(client, "member1@ium.test")
     for target in (seeded["donor"].id, 99999):
-        body = client.post(f"/office/members/{target}/reset", follow_redirects=True).text
+        body = client.post(f"/manage/members/{target}/reset", follow_redirects=True).text
         assert "위원을 찾을 수 없습니다" in body
 
     db.expire_all()
@@ -418,10 +413,10 @@ def test_reset_refuses_a_non_member(db, seeded, client):
 
 def test_deactivation_and_restore_are_recorded(db, seeded, client):
     member = seeded["member2"]  # 담당 케이스가 없어 바로 해제된다
-    _login(client, "office@ium.test")
+    _login(client, "member1@ium.test")
 
-    client.post(f"/office/members/{member.id}/toggle")
-    client.post(f"/office/members/{member.id}/toggle")
+    client.post(f"/manage/members/{member.id}/toggle")
+    client.post(f"/manage/members/{member.id}/toggle")
 
     actions = [
         e.action
@@ -435,24 +430,25 @@ def test_deactivation_and_restore_are_recorded(db, seeded, client):
 
 
 def test_account_log_shows_who_did_what(db, seeded, client):
-    _login(client, "office@ium.test")
-    client.post("/office/members", data={"name": "박신입", "email": "new@ium.test"})
+    _login(client, "member1@ium.test")
+    client.post("/manage/members", data={"name": "박신입", "email": "new@ium.test"})
 
-    body = client.get("/office/members").text
+    body = client.get("/manage/people").text
     assert "계정 기록" in body
     assert "위원 계정 발급" in body
-    assert "협의체 운영자" in body  # 행위자
+    assert "이관희 위원" in body  # 행위자 — 발급한 관리자
 
 
-def test_account_log_is_office_only(db, seeded, client):
-    for email in ("member1@ium.test", "blue@ium.test"):
+def test_the_manage_screen_is_for_the_manager_only(db, seeded, client):
+    """관리 화면은 관리자 한 사람의 자리다. 위원이라도 관리자가 아니면 열리지 않는다."""
+    for email in ("member2@ium.test", "member3@ium.test", "blue@ium.test"):
         _login(client, email)
-        assert client.get("/office/members", follow_redirects=False).headers["location"] == "/"
+        assert client.get("/manage/people", follow_redirects=False).headers["location"] == "/"
 
 
 def test_permission_matrix_shows_the_account_boundary(db, seeded, client):
-    _login(client, "office@ium.test")
-    html = client.get("/office").text
+    _login(client, "member1@ium.test")
+    html = client.get("/manage").text
     assert "account" in html and "account_log" in html
 
 
@@ -462,9 +458,9 @@ def test_permission_matrix_shows_the_account_boundary(db, seeded, client):
 def test_a_deactivated_member_cannot_log_in_even_with_a_fresh_password(db, seeded, client):
     """비밀번호 초기화는 위촉 해제를 되돌리지 않는다."""
     member = seeded["member2"]
-    _login(client, "office@ium.test")
-    client.post(f"/office/members/{member.id}/toggle")
-    temp = _temp_from(client.post(f"/office/members/{member.id}/reset").text)
+    _login(client, "member1@ium.test")
+    client.post(f"/manage/members/{member.id}/toggle")
+    temp = _temp_from(client.post(f"/manage/members/{member.id}/reset").text)
     client.get("/logout")
 
     assert _login(client, member.email, temp).headers["location"] == "/login"
@@ -472,7 +468,7 @@ def test_a_deactivated_member_cannot_log_in_even_with_a_fresh_password(db, seede
 
 def test_seeded_accounts_are_not_forced_to_change(db, seeded, client):
     """기존 계정은 이미 본인이 정한 비밀번호를 쓰고 있다. 갑자기 요구할 이유가 없다."""
-    for key in ("office", "member1", "donor"):
+    for key in ("member3", "member1", "donor"):
         assert seeded[key].must_change_password is False
 
 

@@ -75,8 +75,8 @@ def test_office_report_counts_the_whole_dong(db, seeded, client):
     )
     db.commit()
 
-    _login(client, "office@ium.test")
-    html = client.get("/office/report").text
+    _login(client, "member1@ium.test")
+    html = client.get("/manage/report").text
 
     assert "당월 발굴 케이스 4건" in html  # 두 위원의 케이스를 모두 센다
     assert "당월 활동 위원 2명" in html
@@ -88,9 +88,9 @@ def test_report_counts_only_the_reporting_month(db, seeded, client):
     case.created_at = datetime(y, m, 15, 3, 0)
     db.commit()
 
-    _login(client, "office@ium.test")
-    assert "당월 발굴 케이스 2건" in client.get("/office/report").text
-    assert "당월 발굴 케이스 1건" in client.get(f"/office/report?month={y:04d}-{m:02d}").text
+    _login(client, "member1@ium.test")
+    assert "당월 발굴 케이스 2건" in client.get("/manage/report").text
+    assert "당월 발굴 케이스 1건" in client.get(f"/manage/report?month={y:04d}-{m:02d}").text
 
 
 def test_member_report_uses_the_same_month_rule(db, seeded, client):
@@ -111,15 +111,15 @@ def test_delivery_just_after_korean_midnight_lands_in_the_new_month(db, seeded, 
     match.delivered_at = (start + timedelta(minutes=30)).replace(tzinfo=None)
     db.commit()
 
-    _login(client, "office@ium.test")
-    assert "당월 전달 완료 1건" in client.get("/office/report").text
+    _login(client, "member1@ium.test")
+    assert "당월 전달 완료 1건" in client.get("/manage/report").text
 
 
 def test_office_report_contains_no_identity(db, seeded, client):
     _deliver_one(db, seeded)
 
-    _login(client, "office@ium.test")
-    html = client.get("/office/report").text
+    _login(client, "member1@ium.test")
+    html = client.get("/manage/report").text
 
     assert "홍길동" not in html
     assert "010-0000" not in html
@@ -130,11 +130,11 @@ def test_resolved_case_still_holding_identity_is_flagged(db, seeded, client):
     """전달은 끝났는데 식별정보가 남아 있으면 운영자에게 '파기 대기'로 보인다 — 내용은 아니고."""
     match = _deliver_one(db, seeded)
 
-    _login(client, "office@ium.test")
-    assert "식별정보 파기 대기" in client.get("/office/report").text
+    _login(client, "member1@ium.test")
+    assert "식별정보 파기 대기" in client.get("/manage/report").text
 
     identity_service.purge_identity(db, match.case, seeded["member1"], "전달 완료 후 파기")
-    assert "식별정보 파기 대기" not in client.get("/office/report").text
+    assert "식별정보 파기 대기" not in client.get("/manage/report").text
 
 
 # --- 감사 기록 -------------------------------------------------------------
@@ -156,11 +156,11 @@ def test_audit_log_pages_through_everything(db, seeded, client):
     case = db.scalar(select(Case))
     _add_logs(db, case, seeded["member1"], 60, "일정 조율")  # + 시드의 등록 기록 3건
 
-    _login(client, "office@ium.test")
-    first = client.get("/office/audit").text
+    _login(client, "member1@ium.test")
+    first = client.get("/manage/audit").text
     assert f"{month_label(*current_month())} · 63건" in first
     assert "1 / 2" in first
-    assert "2 / 2" in client.get("/office/audit?page=2").text
+    assert "2 / 2" in client.get("/manage/audit?page=2").text
 
 
 def test_audit_log_answers_what_happened_last_month(db, seeded, client):
@@ -169,13 +169,13 @@ def test_audit_log_answers_what_happened_last_month(db, seeded, client):
     case = db.scalar(select(Case))
     _add_logs(db, case, seeded["member2"], 1, "지난달 열람", when=start + timedelta(days=3))
 
-    _login(client, "office@ium.test")
-    last = client.get(f"/office/audit?month={y:04d}-{m:02d}").text
+    _login(client, "member1@ium.test")
+    last = client.get(f"/manage/audit?month={y:04d}-{m:02d}").text
     assert "지난달 열람" in last
     assert f"{month_label(y, m)} · 1건" in last
 
-    assert "지난달 열람" not in client.get("/office/audit").text
-    assert "지난달 열람" in client.get("/office/audit?month=all").text
+    assert "지난달 열람" not in client.get("/manage/audit").text
+    assert "지난달 열람" in client.get("/manage/audit?month=all").text
 
 
 def test_audit_log_filters_by_person_and_action(db, seeded, client):
@@ -183,11 +183,11 @@ def test_audit_log_filters_by_person_and_action(db, seeded, client):
     _add_logs(db, case, seeded["member2"], 2, "정미영 확인")
     label = month_label(*current_month())
 
-    _login(client, "office@ium.test")
-    by_person = client.get(f"/office/audit?actor={seeded['member2'].id}&action=read").text
+    _login(client, "member1@ium.test")
+    by_person = client.get(f"/manage/audit?actor={seeded['member2'].id}&action=read").text
     assert f"{label} · 2건" in by_person
 
-    writes = client.get("/office/audit?action=write").text
+    writes = client.get("/manage/audit?action=write").text
     assert f"{label} · 3건" in writes  # 시드의 식별정보 등록 기록
 
 
@@ -195,8 +195,8 @@ def test_audit_log_shows_case_code_and_reason_but_never_content(db, seeded, clie
     case = db.scalar(select(Case).where(Case.code == "선부3동 A가정"))
     identity_service.read_identity(db, case, seeded["member1"], "도시락 전달 일정 조율")
 
-    _login(client, "office@ium.test")
-    html = client.get("/office/audit").text
+    _login(client, "member1@ium.test")
+    html = client.get("/manage/audit").text
 
     assert "선부3동 A가정" in html
     assert "도시락 전달 일정 조율" in html
@@ -205,22 +205,23 @@ def test_audit_log_shows_case_code_and_reason_but_never_content(db, seeded, clie
 
 
 def test_records_survive_garbage_query_params(db, seeded, client):
-    _login(client, "office@ium.test")
+    _login(client, "member1@ium.test")
     for path in (
-        "/office/audit?page=abc&actor=x&action=nope&month=zzz",
-        "/office/audit?page=999",
-        "/office/report?month=2026-99",
+        "/manage/audit?page=abc&actor=x&action=nope&month=zzz",
+        "/manage/audit?page=999",
+        "/manage/report?month=2026-99",
     ):
         assert client.get(path).status_code == 200, path
 
 
-def test_records_are_office_only(db, seeded, client):
-    for email in ("member1@ium.test", "blue@ium.test"):
+def test_records_are_for_the_manager_only(db, seeded, client):
+    """동 전체 보고서와 감사 로그는 관리자 자리다. 위원이라는 것만으로는 열리지 않는다."""
+    for email in ("member2@ium.test", "member3@ium.test", "blue@ium.test"):
         _login(client, email)
-        for path in ("/office/report", "/office/audit"):
+        for path in ("/manage/report", "/manage/audit"):
             assert client.get(path, follow_redirects=False).headers["location"] == "/", (email, path)
 
 
 def test_dashboard_links_to_the_full_audit_log(db, seeded, client):
-    _login(client, "office@ium.test")
-    assert 'href="/office/audit"' in client.get("/office").text
+    _login(client, "member1@ium.test")
+    assert 'href="/manage/audit"' in client.get("/manage").text

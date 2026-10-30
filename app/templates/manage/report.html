@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block body %}
 <div class="btnrow" style="margin-top:0">
-  <a class="btn sm" href="/office/report" style="flex:1">월간 보고서</a>
-  <a class="btn ghost sm" href="/office/audit" style="flex:1">열람 기록</a>
+  <a class="btn sm" href="/manage/report" style="flex:1">월간 보고서</a>
+  <a class="btn ghost sm" href="/manage/audit" style="flex:1">열람 기록</a>
 </div>
 
 <div class="btnrow">
-  <a class="btn ghost sm" href="/office/report?month={{ prev_month }}" style="flex:1">‹ {{ prev_label }}</a>
+  <a class="btn ghost sm" href="/manage/report?month={{ prev_month }}" style="flex:1">‹ {{ prev_label }}</a>
   {% if next_month %}
-  <a class="btn ghost sm" href="/office/report?month={{ next_month }}" style="flex:1">{{ next_label }} ›</a>
+  <a class="btn ghost sm" href="/manage/report?month={{ next_month }}" style="flex:1">{{ next_label }} ›</a>
   {% endif %}
 </div>
 
@@ -68,7 +68,7 @@
 <div class="empty" style="padding:22px">미종결 케이스가 없습니다.</div>
 {% endfor %}
 <p class="legend">
-  운영자는 <b>비식별 코드와 진행 상태</b>만 봅니다. 식별정보는 보관 여부만 표시됩니다.
+  이 보고서에는 <b>비식별 코드와 진행 상태</b>만 들어갑니다. 식별정보는 보관 여부만 표시됩니다.
 </p>
 
 <div class="sectit">식별정보 보관 중인 종결 케이스 · {{ retention_rows | length }}건</div>

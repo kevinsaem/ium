@@ -15,9 +15,9 @@
     <h3>{{ issued.user.name }}</h3>
     <div class="sub">{{ issued.user.email }}</div>
   </div>
-  <div class="field" style="margin:11px 0 0">
-    <label>임시 비밀번호 (이 화면에서만 보입니다)</label>
-    <input value="{{ issued.temp }}" readonly onclick="this.select()">
+  <div class="sensitive" style="margin:11px 0 0">
+    <div class="shd"><span class="ic-svg">{{ icon('lock') }}</span> 임시 비밀번호 · 이 화면에서만 보입니다</div>
+    <p class="temp-password" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:22px;font-weight:700;letter-spacing:.06em;margin:6px 0 0;user-select:all">{{ issued.temp }}</p>
   </div>
   <p class="legend">
     이 값은 저장되지 않습니다. 지금 관리자께 직접 전해 주세요. 관리자는 첫 로그인에서
@@ -77,6 +77,25 @@
     </div>
     <button class="btn" type="submit">관리자 발급하고 임시 비밀번호 받기</button>
   </form>
+  {% endif %}
+
+  {% if row.manager and row.members | length > 1 %}
+  <form method="post" action="/super/councils/{{ row.council.id }}/manager/replace"
+        onsubmit="return confirm('{{ row.council.label }} 관리자를 교체합니다. 지금 관리자의 권한은 사라집니다. 계속할까요?')">
+    <div class="field" style="margin:11px 0 0">
+      <label>관리자 교체</label>
+      <select name="member_id" required>
+        <option value="">새 관리자를 맡을 위원</option>
+        {% for m in row.members if not m.is_manager %}
+        <option value="{{ m.id }}">{{ m.name }} ({{ m.email }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn ghost sm" type="submit" style="width:100%">관리자 교체</button>
+  </form>
+  <p class="legend">
+    관리자가 연락이 안 될 때 쓰는 길입니다. 평소에는 관리자가 직접 다른 위원에게 넘깁니다.
+  </p>
   {% endif %}
 
   {% if row.council.is_active and not row.council.is_approved and row.manager %}

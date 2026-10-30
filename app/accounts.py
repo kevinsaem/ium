@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -36,7 +36,6 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 ACTION_LABELS = {
     "create_super": "슈퍼 관리자 계정 생성",
-    "create_office": "운영자 계정 생성",
     "issue_manager": "협의체 관리자 발급",
     "join_member": "위원 초대 코드로 가입",
     "approve_member": "위원 승인",
@@ -91,34 +90,6 @@ def _prepare(db: Session, name: str, email: str) -> tuple[str, str]:
     if db.scalar(select(User).where(User.email == email)) is not None:
         raise AccountError(f"{email} 은(는) 이미 쓰고 있는 이메일입니다.")
     return name, email
-
-
-def create_office(
-    db: Session, *, name: str, email: str, password: str, council_id: int | None = None
-) -> User:
-    """서버 명령으로 운영자를 만든다. 비밀번호를 본인이 정했으므로 변경을 강제하지 않는다."""
-    from app import tenancy
-
-    name, email = _prepare(db, name, email)
-    if council_id is None:
-        council_id = tenancy.default(db).id
-    problem = validate_new_password(password, email=email)
-    if problem:
-        raise AccountError(problem)
-
-    user = User(
-        email=email,
-        name=name,
-        role=Role.OFFICE,
-        council_id=council_id,
-        password_hash=hash_password(password),
-        must_change_password=False,
-    )
-    db.add(user)
-    db.flush()
-    log_event(db, user, "create_office", note="서버 명령으로 생성")
-    db.commit()
-    return user
 
 
 def create_super(db: Session, *, name: str, email: str, password: str) -> User:
@@ -295,7 +266,7 @@ def issue_member(
 
 
 def reset_password(db: Session, actor: User, target: User) -> str:
-    """임시 비밀번호로 초기화한다. 운영자가 위원 계정에 들어갈 수 있는 유일한 길이라 기록을 남긴다."""
+    """임시 비밀번호로 초기화한다. 관리자가 위원 계정에 들어갈 수 있는 유일한 길이라 기록을 남긴다."""
     temp = generate_temp_password()
     target.password_hash = hash_password(temp)
     target.must_change_password = True
@@ -417,14 +388,14 @@ def register_donor(
     address: str = "",
     postal_code: str = "",
 ) -> tuple[User, str]:
-    """운영자나 위원이 후원자를 대신 등록한다.
+    """위원이 후원자를 대신 등록한다.
 
     "후원하시는 분이 연세가 있으시고 (가입을) 어려워할 수도 있으니까" 대신 만들어 드린다.
     이때는 숫자 4자리를 앱이 만들어 화면에 한 번 보여 주고, 후원자는 첫 로그인에서 바꾼다.
     """
     name, digits = _prepare_donor(db, name, phone)
     pin = generate_pin()
-    # 대신 등록은 등록하는 위원·운영자의 협의체로 들어간다.
+    # 대신 등록은 등록하는 위원의 협의체로 들어간다.
     donor = _new_donor(db, name, digits, pin, must_change=True, council_id=actor.council_id)
     _attach_shop(db, donor, shop_name, address, postal_code)
     log_event(db, donor, "register", actor, f"{actor.role.tag}가 대신 등록")

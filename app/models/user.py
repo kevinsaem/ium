@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 class User(Base, TimestampMixin):
-    """후원자 · 위원 · 운영자 계정.
+    """후원자 · 위원 · 관리자 계정.
 
     대상자(도움받는 분)는 이 테이블에 존재하지 않는다. 앱에 계정이 없는 것이
     이음의 설계 원칙이다.
@@ -24,7 +24,7 @@ class User(Base, TimestampMixin):
     __tablename__ = "user"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # 위원·운영자는 이메일로, 후원자는 휴대폰 번호로 로그인한다 (위원회 결정, 안건 07).
+    # 위원는 이메일로, 후원자는 휴대폰 번호로 로그인한다 (위원회 결정, 안건 07).
     # 후원자에게 이메일을 받지 않기로 했으므로 둘 다 비어 있을 수 있다.
     email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, default=None)
     password_hash: Mapped[str] = mapped_column(String(255))
@@ -37,7 +37,7 @@ class User(Base, TimestampMixin):
     )
     dong: Mapped[str] = mapped_column(String(40), default="선부3동")
 
-    # 위원 위촉 관리 (운영자가 승인)
+    # 위원 위촉 관리 (관리자가 승인)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     # 매니저는 역할이 아니라 위원에게 주는 권한이다 (위원회 결정, 안건 14).
     # "위원 중 한 명이 매니저 역할을 맡으며" — 그래서 Role 을 넷으로 늘리지 않는다.
@@ -47,7 +47,7 @@ class User(Base, TimestampMixin):
     # 위원이 발굴해 계정을 만들고, 매니저가 승인해야 그 후원자의 나눔글이 위원에게 보인다.
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     approved_by_id: Mapped[int | None] = mapped_column(ForeignKey("user.id"), default=None)
-    # 운영자가 발급하거나 초기화한 임시 비밀번호로는 비밀번호 변경 화면만 쓸 수 있다.
+    # 관리자가 발급하거나 초기화한 임시 비밀번호로는 비밀번호 변경 화면만 쓸 수 있다.
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     appointed_note: Mapped[str | None] = mapped_column(Text, default=None)
 
@@ -85,7 +85,7 @@ class User(Base, TimestampMixin):
 
         슈퍼 관리자는 서버 명령으로만 생기므로 승인할 상위가 없다.
         """
-        if self.role is Role.SUPER or self.role is Role.OFFICE:
+        if self.role is Role.SUPER:
             return True
         return self.approved_at is not None
 
@@ -94,7 +94,7 @@ class User(Base, TimestampMixin):
 
 
 class Shop(Base, CouncilScoped, TimestampMixin):
-    """나눔가게. 운영자가 인증 배지를 승인하며, 이것이 '관공서 신뢰 보증'의 실체다."""
+    """나눔가게. 관리자가 인증 배지를 승인하며, 이것이 '관공서 신뢰 보증'의 실체다."""
 
     __tablename__ = "shop"
 

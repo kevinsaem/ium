@@ -12,9 +12,9 @@
 <div class="card" style="cursor:default;border-color:var(--accent)">
   <div class="sectit" style="margin-top:0">{{ issued.user.name }} 위원 계정 발급 완료</div>
   <div class="meta"><div class="sub">{{ issued.user.email }}</div></div>
-  <div class="field" style="margin:11px 0 0">
-    <label>임시 비밀번호 (이 화면에서만 보입니다)</label>
-    <input value="{{ issued.temp }}" readonly onclick="this.select()">
+  <div class="sensitive" style="margin:11px 0 0">
+    <div class="shd"><span class="ic-svg">{{ icon('lock') }}</span> 임시 비밀번호 · 이 화면에서만 보입니다</div>
+    <p class="temp-password" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:22px;font-weight:700;letter-spacing:.06em;margin:6px 0 0;user-select:all">{{ issued.temp }}</p>
   </div>
   <p class="legend">
     저장되지 않습니다. 지금 위원께 직접 전해 주세요. 위원은 첫 로그인에서 새 비밀번호를
@@ -143,6 +143,28 @@
 <div class="empty" style="padding:22px">아직 승인된 위원이 없습니다.</div>
 {% endfor %}
 
+{% set others = members | rejectattr('is_manager') | selectattr('is_active') | list %}
+{% if others %}
+<form method="post" action="/manage/members/{{ others[0].id }}/manager" id="handover"
+      onsubmit="this.action='/manage/members/' + this.member_id.value + '/manager';
+                return confirm('관리자를 넘깁니다. 넘기면 이 화면은 더 이상 열리지 않습니다. 계속할까요?')">
+  <div class="field">
+    <label>관리자 넘기기</label>
+    <select name="member_id" required>
+      <option value="">관리자를 맡을 위원</option>
+      {% for m in others %}
+      <option value="{{ m.id }}">{{ m.name }} ({{ m.email }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn ghost" type="submit">관리자 넘기기</button>
+</form>
+<p class="legend">
+  협의체의 관리자는 <b>한 사람</b>입니다. 넘기면 내 관리자 권한이 사라지고, 이 화면도
+  닫힙니다. 그만두시기 전에 넘겨 두면 협의체가 멈추지 않습니다.
+</p>
+{% endif %}
+
 <div class="sectit">위원 계정 직접 발급</div>
 <form method="post" action="/member/manage/members">
   <div class="field">
@@ -186,6 +208,25 @@
   {{ max_failed }}회 연속 틀리면 잠깁니다. 잠금은 <b>시간이 지나도 풀리지 않습니다</b> —
   본인이 운영팀에 연락하면 여기서 풀어 주세요.<br>
   숫자 4자리를 잊으신 후원자는 <a href="/member/donors">후원자 화면</a>에서 초기화할 수도 있습니다.
+</p>
+
+<div class="sectit">계정 기록</div>
+{% for e in events %}
+<div class="card" style="cursor:default;padding:11px 13px">
+  <div class="meta">
+    <h3 style="font-size:12.5px">{{ e.user.name }} · {{ event_labels.get(e.action, e.action) }}</h3>
+    <div class="sub">
+      {{ e.created_at | local }} · {{ e.actor.name if e.actor else '서버 명령' }}
+      {%- if e.note %} · {{ e.note }}{% endif %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="empty" style="padding:22px">아직 계정 기록이 없습니다.</div>
+{% endfor %}
+<p class="legend">
+  비밀번호를 초기화하면 그 계정으로 로그인할 수 있게 됩니다. 그래서 발급·초기화·승인·거절이
+  모두 여기 남습니다.
 </p>
 
 <div class="sectit">운영팀 연락처</div>

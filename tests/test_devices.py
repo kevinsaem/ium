@@ -128,8 +128,8 @@ def test_resetting_the_pin_cuts_every_device(db, seeded, client):
     donor_id = _donor(db).id
     assert db.scalar(select(TrustedDevice)) is not None
 
-    _login_staff(client, "office@ium.test")
-    client.post(f"/office/donors/{donor_id}/reset")
+    _login_staff(client, "member1@ium.test")
+    client.post(f"/manage/donors/{donor_id}/reset")
 
     assert db.scalar(select(TrustedDevice).where(TrustedDevice.user_id == donor_id)) is None
 
@@ -343,13 +343,20 @@ def test_donors_cannot_read_the_notes_about_them(db, seeded, client):
     assert res.headers["location"] == "/"
 
 
-@pytest.mark.parametrize("email", ["blue@ium.test", "office@ium.test"])
-def test_the_donor_detail_screen_is_for_members(db, seeded, client, email):
-    _login_staff(client, email) if email != "blue@ium.test" else client.post(
-        "/login", data={"email": email, "password": "ium1234"}
-    )
+def test_the_donor_detail_screen_is_for_members(db, seeded, client):
+    """후원자 상세는 위원의 자리다.
+
+    "주소는 지도에 표시해 담당 위원 외 다른 봉사위원도 가게를 쉽게 찾아갈 수 있게 한다"
+    (안건 13). 그래서 위원 누구나 보고, 후원자 본인은 보지 않는다 — 남의 가게 주소와
+    위원들이 적어 둔 메모가 들어 있다.
+    """
+    client.post("/login", data={"email": "blue@ium.test", "password": "ium1234"})
     res = client.get(f"/member/donors/{seeded['donor'].id}", follow_redirects=False)
     assert res.headers["location"] == "/"
+
+    for email in ("member1@ium.test", "member2@ium.test", "member3@ium.test"):
+        _login_staff(client, email)
+        assert client.get(f"/member/donors/{seeded['donor'].id}").status_code == 200
 
 
 def test_the_detail_screen_lists_the_shops_offers(db, seeded, client):
@@ -361,5 +368,5 @@ def test_the_detail_screen_lists_the_shops_offers(db, seeded, client):
 
 def test_note_helper_refuses_a_non_donor(db, seeded):
     with pytest.raises(accounts.AccountError) as exc:
-        accounts.add_donor_note(db, seeded["member1"], seeded["office"], "메모")
+        accounts.add_donor_note(db, seeded["member1"], seeded["member1"], "메모")
     assert "후원자에게만" in str(exc.value)

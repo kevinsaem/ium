@@ -5,7 +5,6 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.config import settings
 from app.db import get_db
 from app.deps import require_role
 from app.forms import WALK_MINUTES, parse_enum, parse_optional_int
@@ -22,7 +21,7 @@ from app.models import (
     ThanksMessage,
     User,
 )
-from app import matching, tenancy
+from app import tenancy
 from app.rendering import flash, render
 from app.timeutil import current_month, in_month
 
@@ -120,7 +119,7 @@ def create_shop(
         )
     )
     db.commit()
-    flash(request, "가게가 등록되었습니다. 운영자 인증 후 배지가 부여됩니다.")
+    flash(request, "가게가 등록되었습니다. 관리자 인증 후 배지가 부여됩니다.")
     return RedirectResponse("/donor/post", status_code=303)
 
 
@@ -180,7 +179,7 @@ def mine(request: Request, user: User = Depends(donor_dep), db: Session = Depend
 
     delivered = [m for o in offers for m in o.matches if m.status is MatchStatus.DELIVERED]
 
-    # 나눔글별 진행 상황은 '상태 라벨'만 넘긴다. Case 는 권한 매트릭스상 위원·운영자만
+    # 나눔글별 진행 상황은 '상태 라벨'만 넘긴다. Case 는 권한 매트릭스상 위원만
     # 읽을 수 있으므로, 후원자 템플릿에 Match 객체를 통째로 넘기지 않는다.
     match_state = {}
     for offer in offers:

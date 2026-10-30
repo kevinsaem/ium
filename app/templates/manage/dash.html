@@ -5,7 +5,7 @@
   <div class="seal ic-svg">{{ icon('lock') }}</div>
   <div>
     <b>식별정보 파기 기한 초과 {{ overdue | length }}건</b>
-    <p>보관 기간이 지난 케이스가 있습니다. 담당 위원에게 파기를 요청해 주세요. 운영자는 내용을 볼 수 없습니다.</p>
+    <p>보관 기간이 지난 케이스가 있습니다. 담당 위원에게 파기를 요청하거나 서버에서 일괄 파기하세요. 내용은 열리지 않습니다.</p>
   </div>
 </div>
 {% endif %}
@@ -27,7 +27,7 @@
   <div class="seal ic-svg">{{ icon('shield') }}</div>
   <div>
     <b>긴급 모니터링 {{ stats.urgent_cases }}건</b>
-    <p>담당 위원이 매칭을 진행 중입니다. 운영자는 비식별 코드만 볼 수 있습니다.</p>
+    <p>담당 위원이 매칭을 진행 중입니다. 이 화면에는 비식별 코드만 옵니다.</p>
   </div>
 </div>
 {% endif %}
@@ -59,14 +59,14 @@
 </table>
 
 <div class="sectit">운영 설정</div>
-<form method="post" action="/office/policy/retention">
+<form method="post" action="/manage/policy/retention">
   <div class="field">
     <label>식별정보 보관 기간 (케이스 종결 후, 개월)</label>
     <input name="months" type="number" min="1" max="60" value="{{ policy.identity_retention_months }}" required>
   </div>
   <button class="btn ghost" type="submit">보관 기간 저장</button>
 </form>
-<form method="post" action="/office/policy/pilot" style="margin-top:14px">
+<form method="post" action="/manage/policy/pilot" style="margin-top:14px">
   <div class="field">
     <label>파일럿 시작일 (비우면 누적 집계)</label>
     <input name="start" type="date" value="{{ policy.pilot_start or '' }}">
@@ -95,8 +95,8 @@
 {% else %}
 <div class="empty" style="padding:22px">아직 열람 기록이 없습니다.</div>
 {% endfor %}
-<a class="btn ghost" href="/office/audit">전체 열람 기록 · 기간별 조회</a>
+<a class="btn ghost" href="/manage/audit">전체 열람 기록 · 기간별 조회</a>
 <p class="legend">
-  운영자는 <b>열람했다는 사실</b>만 볼 수 있고 <b>열람된 내용</b>은 볼 수 없습니다.
+  관리자는 <b>열람했다는 사실</b>만 볼 수 있고 <b>열람된 내용</b>은 볼 수 없습니다.
 </p>
 {% endblock %}

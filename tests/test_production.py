@@ -158,11 +158,11 @@ def test_seed_refuses_to_run_in_production_before_deleting_anything(tmp_path):
 def test_login_page_hides_the_account_list_in_production(client, seeded, monkeypatch):
     from app import config
 
-    assert "office@ium.test" in client.get("/login").text  # 개발에서는 바로가기가 보인다
+    assert "member1@ium.test" in client.get("/login").text  # 개발에서는 바로가기가 보인다
 
     monkeypatch.setattr(config.settings, "env", "production")
     body = client.get("/login").text
 
     assert "개발용 계정" not in body
-    assert "office@ium.test" not in body
+    assert "member1@ium.test" not in body
     assert "이관희" not in body

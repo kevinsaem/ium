@@ -25,7 +25,7 @@ def password_form(request: Request, user: User = Depends(current_user)):
     forced = user.must_change_password
     # 변경 전에는 하단 탭을 숨긴다. 눌러 봐야 이 화면으로 되돌아올 뿐이다.
     hide_tabs = {"tabs": []} if forced else {}
-    # 후원자는 숫자 4자리, 위원·운영자는 비밀번호. 쓰는 말이 달라 화면도 갈린다.
+    # 후원자는 숫자 4자리, 위원는 비밀번호. 쓰는 말이 달라 화면도 갈린다.
     is_pin = user.role is Role.DONOR
     return render(
         request,

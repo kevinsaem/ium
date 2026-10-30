@@ -42,13 +42,29 @@ def test_case_table_holds_no_identifying_columns():
 # --- 접근 통제 -------------------------------------------------------------
 
 
-def test_office_cannot_read_identity(db, seeded):
-    """운영자는 식별정보를 읽을 수 없다 — 권한 매트릭스상 위원 전용."""
-    case = db.scalar(select(Case))
-    office = seeded["office"]
+def test_being_the_manager_does_not_open_someone_elses_case(db, seeded):
+    """관리자라는 것이 식별정보 열람 권한을 주지 않는다.
+
+    운영자 역할이 있을 때는 '운영자는 못 읽는다' 가 이 선을 지켰다. 역할을 폐기하면서
+    그 일이 관리자에게 왔고, 관리자는 위원이기도 하다 — 그래서 '관리자여도 남의 가정은
+    못 읽는다' 로 선을 다시 그어야 한다. 읽는 사람은 그 가정을 직접 만나는 담당 위원뿐이다.
+    """
+    manager = seeded["member1"]
+    assert manager.is_manager is True
+
+    # 담당이 다른 위원인 케이스를 하나 만든다
+    case = Case(
+        council_id=seeded["council"].id,
+        code="선부3동 M가정",
+        need_summary="반찬",
+        member_id=seeded["member2"].id,
+    )
+    db.add(case)
+    db.commit()
+
     with pytest.raises(Exception) as exc:
-        identity_service.read_identity(db, case, office, "관리 목적")
-    assert "위원만" in str(exc.value)
+        identity_service.read_identity(db, case, manager, "관리 목적")
+    assert "담당 위원" in str(exc.value)
 
 
 def test_other_member_cannot_read_identity(db, seeded):
@@ -115,19 +131,21 @@ def test_donor_cannot_open_member_screens(client, seeded):
     assert r.status_code == 303 and r.headers["location"] == "/"
 
 
-def test_office_cannot_open_case_detail(client, seeded):
-    _login(client, "office@ium.test")
+def test_a_donor_cannot_open_a_case_detail(client, seeded):
+    """케이스 화면은 위원의 자리다. 후원자는 받는 분이 누구인지 알 수 없다."""
+    client.post("/login", data={"phone": "010-0000-0000", "pin": "0000"})
+    client.post("/login", data={"email": "blue@ium.test", "password": "ium1234"})
     r = client.get("/member/cases/1", follow_redirects=False)
     assert r.status_code == 303
 
 
-def test_office_dashboard_shows_log_facts_not_contents(client, db, seeded):
-    """운영자는 '열람했다는 사실'만 본다."""
+def test_the_manage_dashboard_shows_log_facts_not_contents(client, db, seeded):
+    """관리자는 '열람했다는 사실'만 본다. 열람된 내용은 그 화면에 오지 않는다."""
     case = db.scalar(select(Case))
     identity_service.read_identity(db, case, seeded["member1"], "전달 조율")
 
-    _login(client, "office@ium.test")
-    html = client.get("/office").text
+    _login(client, "member1@ium.test")
+    html = client.get("/manage").text
     assert "전달 조율" in html          # 사유는 보인다
     assert "이관희 위원" in html         # 누가 봤는지도 보인다
     assert "홍길동" not in html          # 열람된 내용은 보이지 않는다

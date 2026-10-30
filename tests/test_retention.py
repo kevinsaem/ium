@@ -57,23 +57,23 @@ def test_policy_row_is_created_once(db):
 
 
 def test_office_can_change_the_period_from_the_screen(db, seeded, client):
-    _login(client, "office@ium.test")
+    _login(client, "member1@ium.test")
     body = client.post(
-        "/office/policy/retention", data={"months": "6"}, follow_redirects=True
+        "/manage/policy/retention", data={"months": "6"}, follow_redirects=True
     ).text
 
     assert "종결 후 6개월" in body
     db.expire_all()
     policy = retention.current(db)
     assert policy.identity_retention_months == 6
-    assert policy.updated_by_id == seeded["office"].id  # 누가 바꿨는지 남는다
+    assert policy.updated_by_id == seeded["member1"].id  # 누가 바꿨는지 남는다
 
 
 @pytest.mark.parametrize("bad,expect", [("", "숫자"), ("석달", "숫자"), ("0", "사이로"), ("61", "사이로")])
 def test_bad_period_is_guided_and_keeps_the_old_value(db, seeded, client, bad, expect):
-    _login(client, "office@ium.test")
+    _login(client, "member1@ium.test")
     body = client.post(
-        "/office/policy/retention", data={"months": bad}, follow_redirects=True
+        "/manage/policy/retention", data={"months": bad}, follow_redirects=True
     ).text
 
     assert expect in body
@@ -81,11 +81,12 @@ def test_bad_period_is_guided_and_keeps_the_old_value(db, seeded, client, bad, e
     assert retention.current(db).identity_retention_months == 36
 
 
-def test_only_office_can_change_the_period(db, seeded, client):
-    for email in ("member1@ium.test", "blue@ium.test"):
+def test_only_the_manager_can_change_the_period(db, seeded, client):
+    """보관 기간은 협의체가 운영하면서 바꾸는 값이라 관리자 자리다."""
+    for email in ("member2@ium.test", "member3@ium.test", "blue@ium.test"):
         _login(client, email)
         res = client.post(
-            "/office/policy/retention", data={"months": "12"}, follow_redirects=False
+            "/manage/policy/retention", data={"months": "12"}, follow_redirects=False
         )
         assert res.headers["location"] == "/", email
 
@@ -191,8 +192,8 @@ def test_office_sees_the_deadline_but_not_the_contents(db, seeded, client):
     case = db.scalar(select(Case).where(Case.code == "선부3동 A가정"))
     _close(db, case, datetime(2026, 1, 15, 3, 0))
 
-    _login(client, "office@ium.test")
-    html = client.get("/office/report").text
+    _login(client, "member1@ium.test")
+    html = client.get("/manage/report").text
 
     assert "선부3동 A가정" in html
     assert "파기 기한" in html
@@ -203,13 +204,13 @@ def test_overdue_warning_appears_on_the_dashboard(db, seeded, client):
     case = db.scalar(select(Case))
     _close(db, case, datetime(2020, 1, 15, 3, 0))  # 36개월을 훌쩍 넘긴 종결
 
-    _login(client, "office@ium.test")
-    assert "파기 기한 초과" in client.get("/office").text
+    _login(client, "member1@ium.test")
+    assert "파기 기한 초과" in client.get("/manage").text
 
 
 def test_no_warning_when_nothing_is_overdue(db, seeded, client):
-    _login(client, "office@ium.test")
-    assert "파기 기한 초과" not in client.get("/office").text
+    _login(client, "member1@ium.test")
+    assert "파기 기한 초과" not in client.get("/manage").text
 
 
 def test_member_sees_the_deadline_on_the_case(db, seeded, client):
@@ -225,28 +226,60 @@ def test_member_sees_the_deadline_on_the_case(db, seeded, client):
 # --- 운영자의 기한 집행 권한 -------------------------------------------------
 
 
-def test_office_can_destroy_without_being_able_to_read(db, seeded):
-    """'운영자는 식별정보를 볼 수 없다'와 '보관 기한을 집행한다'가 함께 성립해야 한다."""
-    case = db.scalar(select(Case))
+def test_the_manager_destroys_without_reading(db, seeded):
+    """'내용을 보지 않는다'와 '보관 기한을 집행한다'가 함께 성립해야 한다.
+
+    운영자 역할이 있을 때는 이 선이 역할로 그어져 있었다 — 운영자는 읽을 수 없고 파기만
+    했다. 역할을 폐기하면서 집행이 관리자에게 왔고(2026-10-24 결정), 관리자는 위원이라
+    자기 담당 케이스는 읽을 수 있다. 그래서 선이 역할에서 **경로**로 옮겨졌다.
+
+    purge_expired_identity 는 복호화하지 않는다. 담당이 아닌 케이스도 지울 수 있지만
+    내용을 보지는 못하고, 누가 언제 지웠는지가 기록에 남는다.
+    """
+    manager = seeded["member1"]
+
+    # 담당이 다른 위원인 케이스를 만든다 — 관리자가 읽을 수 없는 케이스다
+    case = Case(
+        council_id=seeded["council"].id,
+        code="선부3동 P가정",
+        need_summary="반찬",
+        member_id=seeded["member2"].id,
+    )
+    db.add(case)
+    db.commit()
+    identity_service.upsert_identity(
+        db, case, seeded["member2"], name="박파기", phone="010-0000-9999",
+        consent_given=True,
+    )
     _close(db, case, datetime(2020, 1, 15, 3, 0))
 
-    # 읽기는 여전히 막힌다
+    # 읽기는 막힌다 — 담당 위원이 아니다
     with pytest.raises(Exception) as exc:
-        identity_service.read_identity(db, case, seeded["office"], "궁금해서")
-    assert "위원만" in str(exc.value)
+        identity_service.read_identity(db, case, manager, "궁금해서")
+    assert "담당 위원" in str(exc.value)
 
     # 파기는 할 수 있다
-    identity_service.purge_expired_identity(db, case, seeded["office"], "보관 기간 경과")
+    identity_service.purge_expired_identity(db, case, manager, "보관 기간 경과")
     db.expire_all()
     assert db.get(Case, case.id).identity is None
+    assert db.get(Case, case.id) is not None  # 비식별 케이스는 남는다
 
 
-def test_members_cannot_use_the_retention_purge_path(db, seeded):
-    """위원은 담당 케이스만 파기한다. 기한 집행 경로로 남의 케이스를 지울 수는 없다."""
+def test_a_plain_member_cannot_use_the_retention_purge_path(db, seeded):
+    """위원은 담당 케이스만 파기한다. 기한 집행 경로는 관리자 것이다.
+
+    담당 위원의 파기(purge_identity)와 기한 집행(purge_expired_identity)은 다른 경로다.
+    앞은 그 가정을 아는 사람이 종결 후 지우는 일이고, 뒤는 기한이 지난 것을 일괄로
+    집행하는 일이다. 뒤쪽이 위원 누구에게나 열리면 남의 가정 기록을 지울 수 있다.
+    """
     case = db.scalar(select(Case))
-    with pytest.raises(Exception) as exc:
-        identity_service.purge_expired_identity(db, case, seeded["member1"], "기한")
-    assert "운영자만" in str(exc.value)
+    for key in ("member2", "member3"):
+        with pytest.raises(Exception) as exc:
+            identity_service.purge_expired_identity(db, case, seeded[key], "기한")
+        assert "관리자만" in str(exc.value)
+
+    db.expire_all()
+    assert db.get(Case, case.id).identity is not None
 
 
 def test_purge_is_logged_as_purge_not_as_an_edit(db, seeded):
@@ -276,8 +309,8 @@ def test_purge_leaves_the_case_and_its_statistics(db, seeded):
 
 
 def test_permission_matrix_shows_the_retention_boundary(db, seeded, client):
-    _login(client, "office@ium.test")
-    assert "identity_retention" in client.get("/office").text
+    _login(client, "member1@ium.test")
+    assert "identity_retention" in client.get("/manage").text
 
 
 # --- 일괄 파기 명령 -----------------------------------------------------------
@@ -331,7 +364,7 @@ def test_purge_command_destroys_and_records_who_ran_it(db, seeded):
 
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONPATH": str(ROOT)}
     result = subprocess.run(
-        [sys.executable, "-m", "app.purge_expired", "--apply", "--actor", "office@ium.test"],
+        [sys.executable, "-m", "app.purge_expired", "--apply", "--actor", "member1@ium.test"],
         cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=120,
     )
 
@@ -346,22 +379,22 @@ def test_purge_command_destroys_and_records_who_ran_it(db, seeded):
         select(IdentityAccessLog)
         .where(IdentityAccessLog.case_id == case_id, IdentityAccessLog.action == "purge")
     )
-    assert log.actor_id == seeded["office"].id
+    assert log.actor_id == seeded["member1"].id
     assert "보관 기간" in log.reason
 
 
-def test_purge_command_refuses_a_member_as_actor(db, seeded):
+def test_purge_command_refuses_a_plain_member_as_actor(db, seeded):
     case = db.scalar(select(Case))
     _close(db, case, datetime(2020, 1, 15, 3, 0))
 
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONPATH": str(ROOT)}
     result = subprocess.run(
-        [sys.executable, "-m", "app.purge_expired", "--apply", "--actor", "member1@ium.test"],
+        [sys.executable, "-m", "app.purge_expired", "--apply", "--actor", "member2@ium.test"],
         cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=120,
     )
 
     assert result.returncode != 0
-    assert "운영자 계정을 찾을 수 없습니다" in result.stderr
+    assert "관리자 계정을 찾을 수 없습니다" in result.stderr
     db.expire_all()
     assert db.get(Case, case.id).identity is not None
 

@@ -97,9 +97,12 @@ def seed() -> None:
         council = tenancy.default(db)
         cid = council.id
 
-        office = User(
-            email="office@ium.test", password_hash=hash_password(PASSWORD),
-            name="협의체 운영자", role=Role.OFFICE, council_id=cid,
+        # 운영자 역할은 폐기했다. 이 계정은 '관리자가 아닌 평범한 위원' 으로 남겨 둔다 —
+        # 관리자만 할 수 있는 일을 화면에서 확인할 때 이 계정으로 들어가 보면 된다.
+        member3 = User(
+            email="member3@ium.test", password_hash=hash_password(PASSWORD),
+            name="김복지 위원", role=Role.MEMBER, council_id=cid,
+            approved_at=datetime.now(timezone.utc),
         )
         member1 = User(
             email="member1@ium.test", password_hash=hash_password(PASSWORD),
@@ -111,7 +114,7 @@ def seed() -> None:
             name="정미영 위원", role=Role.MEMBER, council_id=cid, appointed_note="2026년 위촉",
             approved_at=datetime.now(timezone.utc),
         )
-        db.add_all([office, member1, member2])
+        db.add_all([member3, member1, member2])
         db.flush()
 
         shops: dict[str, Shop] = {}
@@ -128,7 +131,7 @@ def seed() -> None:
                 council_id=cid, owner_id=donor.id, name=shop_name, category=category, walk_minutes=walk,
                 address=address, postal_code=postal,
                 is_certified=certified,
-                certified_by_id=office.id if certified else None,
+                certified_by_id=member3.id if certified else None,
                 certified_note="2026-07 현장 확인" if certified else None,
             )
             db.add(shop)
@@ -209,8 +212,8 @@ def seed() -> None:
         db.commit()
 
         print(f"시드 완료. 협의체: {council.label} (/{council.slug})")
-        print(f"  운영자  office@ium.test (비밀번호 {PASSWORD})")
-        print(f"  위원    member1@ium.test / member2@ium.test (비밀번호 {PASSWORD})")
+        print(f"  관리자  member1@ium.test (비밀번호 {PASSWORD}) — 관리 화면 /manage/people")
+        print(f"  위원    member2@ium.test / member3@ium.test (비밀번호 {PASSWORD})")
         print(f"  후원자  010-1000-0001 외 4명 (숫자 {DONOR_PIN})")
         print(f"  위원 초대 코드  {invite.code}  →  /c/{council.slug}/join")
         print(f"  승인 대기 위원  {pending.email} (비밀번호 {PENDING_PASSWORD})")

@@ -58,11 +58,11 @@ def test_manager_sees_locked_accounts_and_unlocks(db, seeded, client):
     _lock_out(client, "member2@ium.test")
 
     _login(client, "member1@ium.test")  # 매니저
-    body = client.get("/member/manage").text
+    body = client.get("/manage/people").text
     assert "잠긴 계정 · 1건" in body
     assert target.name in body
 
-    body = client.post(f"/member/manage/unlock/{target.id}", follow_redirects=True).text
+    body = client.post(f"/manage/unlock/{target.id}", follow_redirects=True).text
     assert "잠금을 해제했습니다" in body
 
     db.expire_all()
@@ -77,7 +77,7 @@ def test_unlocking_is_recorded_with_the_manager(db, seeded, client):
     _lock_out(client, "member2@ium.test")
 
     _login(client, "member1@ium.test")
-    client.post(f"/member/manage/unlock/{target.id}")
+    client.post(f"/manage/unlock/{target.id}")
 
     event = db.scalar(
         select(AccountEvent).where(
@@ -96,7 +96,7 @@ def test_a_plain_member_cannot_unlock(db, seeded, client):
     db.commit()
 
     _login(client, "member2@ium.test")
-    for path in ("/member/manage", f"/member/manage/unlock/{target.id}"):
+    for path in ("/manage", f"/manage/unlock/{target.id}"):
         res = client.get(path, follow_redirects=False) if path.endswith("manage") else client.post(
             path, follow_redirects=False
         )
@@ -106,19 +106,23 @@ def test_a_plain_member_cannot_unlock(db, seeded, client):
     assert accounts.is_locked(db.get(User, target.id))
 
 
-def test_office_cannot_unlock_either(db, seeded, client):
-    """잠금 해제는 매니저 몫이다. 운영자는 비밀번호 초기화로 돕는다."""
+def test_a_member_without_the_manager_flag_cannot_unlock(db, seeded, client):
+    """잠금 해제는 관리자 몫이다 (안건 15).
+
+    운영자 역할이 있던 자리다. 역할을 폐기하면서 '관리자가 아닌 위원' 이 그 자리를
+    맡았다 — 위원이라는 것만으로는 잠금을 풀 수 없다는 것이 여전히 확인돼야 한다.
+    """
     _lock_out(client, "member2@ium.test")
 
-    _login(client, "office@ium.test")
-    res = client.get("/member/manage", follow_redirects=False)
+    _login(client, "member3@ium.test")
+    res = client.get("/manage/people", follow_redirects=False)
     assert res.headers["location"] == "/"
 
 
 def test_unlocking_an_open_account_is_refused(db, seeded, client):
     _login(client, "member1@ium.test")
     body = client.post(
-        f"/member/manage/unlock/{seeded['donor'].id}", follow_redirects=True
+        f"/manage/unlock/{seeded['donor'].id}", follow_redirects=True
     ).text
     assert "잠겨 있지 않습니다" in body
 
@@ -135,8 +139,8 @@ def test_resetting_a_pin_also_clears_the_lock(db, seeded, client):
     db.expire_all()
     assert accounts.is_locked(db.get(User, donor_id))
 
-    _login(client, "office@ium.test")
-    client.post(f"/office/donors/{donor_id}/reset")
+    _login(client, "member1@ium.test")
+    client.post(f"/manage/donors/{donor_id}/reset")
 
     db.expire_all()
     assert not accounts.is_locked(db.get(User, donor_id))
@@ -148,7 +152,7 @@ def test_resetting_a_pin_also_clears_the_lock(db, seeded, client):
 def test_manager_sets_the_team_contact(db, seeded, client):
     _login(client, "member1@ium.test")
     body = client.post(
-        "/member/manage/contact",
+        "/manage/contact",
         data={"contact": "선부3동 협의체 010-1234-5678"},
         follow_redirects=True,
     ).text
@@ -163,7 +167,7 @@ def test_manager_sets_the_team_contact(db, seeded, client):
 def test_the_contact_appears_on_the_login_screen(db, seeded, client):
     """잠긴 분이 어디로 연락할지 모르는 것이 잠금 자체보다 불편하다."""
     _login(client, "member1@ium.test")
-    client.post("/member/manage/contact", data={"contact": "협의체 010-1234-5678"})
+    client.post("/manage/contact", data={"contact": "협의체 010-1234-5678"})
     client.get("/logout")
 
     assert "협의체 010-1234-5678" in client.get("/login").text
@@ -171,7 +175,7 @@ def test_the_contact_appears_on_the_login_screen(db, seeded, client):
 
 def test_the_lock_message_carries_the_contact(db, seeded, client):
     _login(client, "member1@ium.test")
-    client.post("/member/manage/contact", data={"contact": "협의체 010-1234-5678"})
+    client.post("/manage/contact", data={"contact": "협의체 010-1234-5678"})
     client.get("/logout")
 
     _lock_out(client, "member2@ium.test")
@@ -186,9 +190,9 @@ def test_without_a_contact_the_message_still_points_to_the_team(db, seeded, clie
 
 def test_clearing_the_contact_is_allowed(db, seeded, client):
     _login(client, "member1@ium.test")
-    client.post("/member/manage/contact", data={"contact": "협의체 010-1234-5678"})
+    client.post("/manage/contact", data={"contact": "협의체 010-1234-5678"})
     body = client.post(
-        "/member/manage/contact", data={"contact": "  "}, follow_redirects=True
+        "/manage/contact", data={"contact": "  "}, follow_redirects=True
     ).text
 
     assert "비웠습니다" in body
@@ -199,16 +203,16 @@ def test_clearing_the_contact_is_allowed(db, seeded, client):
 def test_an_overlong_contact_is_refused(db, seeded, client):
     _login(client, "member1@ium.test")
     body = client.post(
-        "/member/manage/contact", data={"contact": "가" * 200}, follow_redirects=True
+        "/manage/contact", data={"contact": "가" * 200}, follow_redirects=True
     ).text
     assert "너무 깁니다" in body
 
 
 def test_only_a_manager_sets_the_contact(db, seeded, client):
-    for email in ("member2@ium.test", "office@ium.test", "blue@ium.test"):
+    for email in ("member2@ium.test", "member3@ium.test", "blue@ium.test"):
         _login(client, email)
         res = client.post(
-            "/member/manage/contact", data={"contact": "몰래"}, follow_redirects=False
+            "/manage/contact", data={"contact": "몰래"}, follow_redirects=False
         )
         assert res.headers["location"] == "/", email
 
@@ -221,7 +225,7 @@ def test_only_a_manager_sets_the_contact(db, seeded, client):
 
 def test_the_manager_tab_shows_only_for_managers(db, seeded, client):
     _login(client, "member1@ium.test")
-    assert 'href="/member/manage"' in client.get("/member").text
+    assert 'href="/manage"' in client.get("/member").text
 
     _login(client, "member2@ium.test")
-    assert 'href="/member/manage"' not in client.get("/member").text
+    assert 'href="/manage"' not in client.get("/member").text

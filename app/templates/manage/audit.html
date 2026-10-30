@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block body %}
 <div class="btnrow" style="margin-top:0">
-  <a class="btn ghost sm" href="/office/report" style="flex:1">월간 보고서</a>
-  <a class="btn sm" href="/office/audit" style="flex:1">열람 기록</a>
+  <a class="btn ghost sm" href="/manage/report" style="flex:1">월간 보고서</a>
+  <a class="btn sm" href="/manage/audit" style="flex:1">열람 기록</a>
 </div>
 
-<form method="get" action="/office/audit" style="margin-top:14px">
+<form method="get" action="/manage/audit" style="margin-top:14px">
   <div class="field">
     <label>기간</label>
     <select name="month">
@@ -57,6 +57,6 @@
 {% endif %}
 
 <p class="legend">
-  운영자는 <b>열람했다는 사실과 사유</b>만 볼 수 있고 열람된 내용은 볼 수 없습니다. 시각은 한국 시간입니다.
+  관리자는 <b>열람했다는 사실과 사유</b>만 볼 수 있고 열람된 내용은 볼 수 없습니다. 시각은 한국 시간입니다.
 </p>
 {% endblock %}

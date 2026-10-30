@@ -14,7 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.db import is_migrated
 from app.deps import PasswordChangeRequired
-from app.routers import account, auth, donor, member, office, superadmin
+from app.routers import account, auth, donor, manage, member, superadmin
 
 
 @asynccontextmanager
@@ -45,7 +45,7 @@ app.include_router(account.router)
 app.include_router(auth.router)
 app.include_router(donor.router)
 app.include_router(member.router)
-app.include_router(office.router)
+app.include_router(manage.router)
 app.include_router(superadmin.router)
 
 

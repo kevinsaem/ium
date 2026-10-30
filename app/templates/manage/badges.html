@@ -19,7 +19,7 @@
       <div class="sub">대표 {{ s.owner.name }}</div>
     </div>
   </div>
-  <form method="post" action="/office/shops/{{ s.id }}/certify">
+  <form method="post" action="/manage/shops/{{ s.id }}/certify">
     <div class="field" style="margin:11px 0 0">
       <input name="note" placeholder="확인 메모 (예: 2026-08-25 현장 방문 확인)">
     </div>
@@ -44,7 +44,7 @@
       </div>
     </div>
   </div>
-  <form method="post" action="/office/shops/{{ s.id }}/revoke">
+  <form method="post" action="/manage/shops/{{ s.id }}/revoke">
     <button class="btn ghost" type="submit">인증 취소</button>
   </form>
 </div>

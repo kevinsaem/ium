@@ -36,6 +36,7 @@ def _dashboard(request: Request, db: Session, user: User, **extra):
             "council": c,
             "manager": councils.manager_of(db, c),
             "counts": councils.counts_for(db, c),
+            "members": councils.members_of(db, c),
         }
         for c in councils.all_councils(db)
     ]
@@ -113,6 +114,31 @@ def issue_manager(
     )
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@router.post("/councils/{council_id}/manager/replace")
+def replace_manager(
+    council_id: int,
+    request: Request,
+    member_id: str = Form(""),
+    user: User = Depends(super_dep),
+    db: Session = Depends(get_db),
+):
+    """관리자를 교체한다 — 관리자가 연락이 안 될 때의 길이다."""
+    council = _council(db, council_id)
+    successor = db.get(User, int(member_id)) if member_id.isdigit() else None
+    if successor is None:
+        flash(request, "교체할 위원을 선택해 주세요.")
+        return RedirectResponse("/super", status_code=303)
+
+    try:
+        councils.replace_manager(db, user, council, successor)
+    except councils.CouncilError as exc:
+        flash(request, str(exc))
+        return RedirectResponse("/super", status_code=303)
+
+    flash(request, f"{council.label} 관리자를 {successor.name}님으로 교체했습니다.")
+    return RedirectResponse("/super", status_code=303)
 
 
 @router.post("/councils/{council_id}/approve")

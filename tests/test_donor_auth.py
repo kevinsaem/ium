@@ -196,7 +196,7 @@ def test_staff_login_still_uses_email(db, seeded, client):
 
 def test_login_page_offers_both_doors(db, seeded, client):
     body = client.get("/login").text
-    assert "후원자 로그인" in body and "위원 · 운영자 로그인" in body
+    assert "후원자 로그인" in body and "위원 로그인" in body
     assert 'href="/signup"' in body
 
 
@@ -322,9 +322,14 @@ def _login_staff(client, email):
     client.post("/login", data={"email": email, "password": "ium1234"}, follow_redirects=False)
 
 
-@pytest.mark.parametrize("who,path", [("office", "/office/donors"), ("member1", "/member/donors")])
-def test_staff_registers_a_donor_on_their_behalf(db, seeded, client, who, path):
-    """"연세가 있으시고 어려워할 수도 있으니까" — 운영자와 위원 모두 만들어 드릴 수 있다."""
+@pytest.mark.parametrize("who", ["member1", "member2", "member3"])
+def test_staff_registers_a_donor_on_their_behalf(db, seeded, client, who):
+    """"연세가 있으시고 어려워할 수도 있으니까" — 위원 누구나 만들어 드릴 수 있다.
+
+    발굴은 위원의 일이고 승인은 관리자의 일이다 (안건 10). 대신 등록까지 관리자만
+    하게 두면, 가게를 찾아간 위원이 관리자에게 명단을 넘겨야 한다.
+    """
+    path = "/member/donors"
     _login_staff(client, f"{who}@ium.test")
     body = client.post(
         path, data={"name": "박나눔", "phone": "010-7777-1234", "shop_name": "나눔상회"}
@@ -339,9 +344,9 @@ def test_staff_registers_a_donor_on_their_behalf(db, seeded, client, who, path):
 
 
 def test_registered_donor_must_change_the_pin_before_using_the_app(db, seeded, client):
-    _login_staff(client, "office@ium.test")
+    _login_staff(client, "member1@ium.test")
     pin = _pin_from(
-        client.post("/office/donors", data={"name": "박나눔", "phone": "010-7777-1234"}).text
+        client.post("/member/donors", data={"name": "박나눔", "phone": "010-7777-1234"}).text
     )
     client.get("/logout")
 
@@ -358,9 +363,9 @@ def test_registered_donor_must_change_the_pin_before_using_the_app(db, seeded, c
 def test_the_given_pin_never_enters_the_session_cookie(db, seeded, client):
     import base64
 
-    _login_staff(client, "office@ium.test")
+    _login_staff(client, "member1@ium.test")
     pin = _pin_from(
-        client.post("/office/donors", data={"name": "박나눔", "phone": "010-7777-1234"}).text
+        client.post("/member/donors", data={"name": "박나눔", "phone": "010-7777-1234"}).text
     )
 
     raw = client.cookies.get("session")
@@ -380,12 +385,14 @@ def test_registration_is_recorded_with_the_staff_as_actor(db, seeded, client):
 
 
 def test_donors_cannot_register_other_donors(db, seeded, client):
+    """대신 등록은 위원의 일이다. 후원자가 다른 후원자를 만들 수는 없다."""
     _signup(client)
-    for path in ("/office/donors", "/member/donors"):
-        res = client.post(
-            path, data={"name": "몰래", "phone": "010-7777-1234"}, follow_redirects=False
-        )
-        assert res.headers["location"] == "/", path
+    res = client.post(
+        "/member/donors",
+        data={"name": "몰래", "phone": "010-7777-1234"},
+        follow_redirects=False,
+    )
+    assert res.headers["location"] == "/"
     assert db.scalar(select(User).where(User.phone == "01077771234")) is None
 
 
@@ -397,8 +404,8 @@ def test_reset_sets_the_pin_to_the_last_four_digits(db, seeded, client):
     client.get("/logout")
     donor_id = db.scalar(select(User.id).where(User.phone == DIGITS))
 
-    _login_staff(client, "office@ium.test")
-    body = client.post(f"/office/donors/{donor_id}/reset").text
+    _login_staff(client, "member1@ium.test")
+    body = client.post(f"/manage/donors/{donor_id}/reset").text
 
     assert _pin_from(body) == DIGITS[-4:] == "0001"
     db.expire_all()
@@ -412,8 +419,8 @@ def test_reset_lets_a_locked_out_donor_back_in(db, seeded, client):
         _pin_login(client, pin="9876")
     donor_id = db.scalar(select(User.id).where(User.phone == DIGITS))
 
-    _login_staff(client, "office@ium.test")
-    client.post(f"/office/donors/{donor_id}/reset")
+    _login_staff(client, "member1@ium.test")
+    client.post(f"/manage/donors/{donor_id}/reset")
     client.get("/logout")
 
     db.expire_all()
@@ -426,21 +433,21 @@ def test_reset_is_recorded(db, seeded, client):
     client.get("/logout")
     donor_id = db.scalar(select(User.id).where(User.phone == DIGITS))
 
-    _login_staff(client, "office@ium.test")
-    client.post(f"/office/donors/{donor_id}/reset")
+    _login_staff(client, "member1@ium.test")
+    client.post(f"/manage/donors/{donor_id}/reset")
 
     event = db.scalar(
         select(AccountEvent).where(
             AccountEvent.user_id == donor_id, AccountEvent.action == "reset"
         )
     )
-    assert event.actor_id == seeded["office"].id
+    assert event.actor_id == seeded["member1"].id
     assert "전화번호 뒤" in event.note
 
 
 def test_reset_refuses_a_member(db, seeded, client):
-    _login_staff(client, "office@ium.test")
+    _login_staff(client, "member1@ium.test")
     body = client.post(
-        f"/office/donors/{seeded['member1'].id}/reset", follow_redirects=True
+        f"/manage/donors/{seeded['member1'].id}/reset", follow_redirects=True
     ).text
     assert "후원자를 찾을 수 없습니다" in body

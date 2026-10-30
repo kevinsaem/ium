@@ -34,12 +34,6 @@ TABS: dict[Role, list[dict[str, str]]] = {
         {"key": "donors", "href": "/member/donors", "icon": "store", "label": "후원자"},
         {"key": "report", "href": "/member/report", "icon": "chart", "label": "활동기록"},
     ],
-    Role.OFFICE: [
-        {"key": "dash", "href": "/office", "icon": "building", "label": "현황"},
-        {"key": "members", "href": "/office/members", "icon": "users", "label": "위원"},
-        {"key": "badges", "href": "/office/badges", "icon": "award", "label": "인증"},
-        {"key": "records", "href": "/office/report", "icon": "doc", "label": "기록"},
-    ],
     # 슈퍼 관리자의 탭이 하나인 것은 할 일이 하나뿐이기 때문이다 — 협의체를 만들고
     # 열어 주는 것. 탭을 늘리고 싶어질 때마다 그게 협의체 안을 들여다보는 화면이
     # 아닌지 먼저 물을 것.
@@ -48,21 +42,27 @@ TABS: dict[Role, list[dict[str, str]]] = {
     ],
 }
 
-# 매니저 전용 탭. 매니저는 위원 중 한 명이라(안건 14) 위원 탭 뒤에 붙인다.
-MANAGER_TAB = {"key": "manage", "href": "/member/manage", "icon": "shield", "label": "매니저"}
+# 관리자 전용 탭. 관리자는 위원 중 한 명이라(안건 14) 위원 탭 뒤에 붙인다.
+#
+# 탭이 둘인 것은 관리자가 하는 일이 두 묶음이기 때문이다 — 사람을 들이고 거두는 일과,
+# 협의체가 어떻게 돌아가는지 보는 일. 운영자 역할이 하던 네 탭(현황·위원·인증·기록)을
+# 그대로 옮기면 위원 탭까지 여덟 개가 되어 휴대폰 화면에 들어가지 않는다.
+MANAGER_TABS = [
+    {"key": "manage", "href": "/manage/people", "icon": "shield", "label": "관리"},
+    {"key": "dash", "href": "/manage", "icon": "building", "label": "현황"},
+]
 
 
 def tabs_for(user: User) -> list[dict[str, str]]:
     tabs = list(TABS[user.role])
     if is_manager(user):
-        tabs.append(MANAGER_TAB)
+        tabs.extend(MANAGER_TABS)
     return tabs
 
 
 HOME: dict[Role, str] = {
     Role.DONOR: "/donor",
     Role.MEMBER: "/member",
-    Role.OFFICE: "/office",
     Role.SUPER: "/super",
 }
 

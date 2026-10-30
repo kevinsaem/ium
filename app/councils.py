@@ -163,6 +163,60 @@ def manager_of(db: Session, council: Council) -> User | None:
     )
 
 
+def replace_manager(db: Session, actor: User, council: Council, successor: User) -> User:
+    """관리자를 교체한다 — 슈퍼 관리자 쪽 길.
+
+    관리자가 갑자기 연락이 안 될 때를 위한 길이다. 관리자 본인이 넘기는 길
+    (/manage/members/<id>/manager)만 두면 그 상황에서 협의체가 멈추고, 이 길만 두면
+    위원들이 스스로 정할 수 없다. 그래서 둘 다 둔다 (2026-10-24 결정).
+    """
+    from app import accounts
+
+    if actor.role is not Role.SUPER:
+        raise CouncilError("관리자 교체는 슈퍼 관리자만 할 수 있습니다.")
+    if successor.council_id != council.id or successor.role is not Role.MEMBER:
+        raise CouncilError("그 협의체의 위원만 관리자가 될 수 있습니다.")
+    if not successor.is_active:
+        raise CouncilError(f"{successor.name} 위원은 위촉이 해제된 상태입니다.")
+    if not successor.is_approved:
+        raise CouncilError(f"{successor.name} 위원을 먼저 승인해 주세요.")
+
+    previous = manager_of(db, council)
+    if previous is not None and previous.id == successor.id:
+        raise CouncilError(f"{successor.name} 위원이 이미 관리자입니다.")
+
+    if previous is not None:
+        previous.is_manager = False
+        accounts.log_event(
+            db, previous, "revoke_manager", actor, f"{successor.name} 위원으로 교체"
+        )
+    successor.is_manager = True
+    accounts.log_event(db, successor, "grant_manager", actor, "슈퍼 관리자가 교체")
+    db.commit()
+    db.refresh(successor)
+    return successor
+
+
+def members_of(db: Session, council: Council) -> list[User]:
+    """협의체의 승인된 위원 — 관리자를 고를 후보다.
+
+    슈퍼 관리자가 보는 유일한 '사람 목록' 이다. 이름과 이메일뿐이고, 그 위원이 어느
+    가정을 맡고 있는지는 오지 않는다.
+    """
+    return list(
+        db.scalars(
+            select(User)
+            .where(
+                User.council_id == council.id,
+                User.role == Role.MEMBER,
+                User.is_active.is_(True),
+                User.approved_at.is_not(None),
+            )
+            .order_by(User.name)
+        ).all()
+    )
+
+
 def all_councils(db: Session) -> list[Council]:
     """승인 대기가 위로. 할 일이 있는 협의체가 먼저 보여야 한다."""
     return list(

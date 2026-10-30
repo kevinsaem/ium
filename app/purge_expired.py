@@ -3,14 +3,14 @@
     python -m app.purge_expired            # 대상만 보여 준다 (파기하지 않음)
     python -m app.purge_expired --apply    # 실제로 파기한다
 
-위원회 결정(2026-09-19, 안건 01)대로 종결 후 보관 기간이 지나면 파기한다. 기간은 운영자가
+위원회 결정(2026-09-19, 안건 01)대로 종결 후 보관 기간이 지나면 파기한다. 기간은 관리자가
 화면에서 정한 값(Policy.identity_retention_months)을 그대로 쓴다.
 
 기본이 '보여 주기'인 이유: 파기는 되돌릴 수 없다. cron 에 걸기 전에 무엇이 지워질지
 사람이 한 번 보고 --apply 를 붙이게 한다.
 
 파기 기록은 앱에서 누른 것과 같은 자리(identity_access_log)에 남는다. 행위자는 이 명령을
-돌린 운영자 계정이며, --actor 로 지정한다. 누가 돌렸는지 없는 파기는 기록이 아니다.
+돌린 관리자 계정이며, --actor 로 지정한다. 누가 돌렸는지 없는 파기는 기록이 아니다.
 """
 from __future__ import annotations
 
@@ -19,16 +19,16 @@ import sys
 
 from sqlalchemy import select
 
-from app import identity_service, retention
+from app import identity_service, permissions, retention
 from app.db import SessionLocal, is_migrated
-from app.models import Role, User
+from app.models import User
 from app.timeutil import to_local
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="보관 기한이 지난 식별정보를 파기한다.")
     parser.add_argument("--apply", action="store_true", help="실제로 파기한다 (없으면 목록만)")
-    parser.add_argument("--actor", help="파기 기록에 남길 운영자 이메일 (--apply 에 필수)")
+    parser.add_argument("--actor", help="파기 기록에 남길 관리자 이메일 (--apply 에 필수)")
     args = parser.parse_args(argv)
 
     if not is_migrated():
@@ -52,15 +52,15 @@ def main(argv: list[str] | None = None) -> None:
             print(f"  {case.code}  종결 {closed}  기한 {due}")
 
         if not args.apply:
-            print("\n목록만 보여 주었습니다. 실제로 파기하려면 --apply --actor <운영자 이메일> 을 붙이세요.")
+            print("\n목록만 보여 주었습니다. 실제로 파기하려면 --apply --actor <관리자 이메일> 을 붙이세요.")
             return
 
         if not args.actor:
-            sys.exit("--apply 에는 --actor <운영자 이메일> 이 필요합니다. 기록에 행위자를 남겨야 합니다.")
+            sys.exit("--apply 에는 --actor <관리자 이메일> 이 필요합니다. 기록에 행위자를 남겨야 합니다.")
 
         actor = db.scalar(select(User).where(User.email == args.actor.strip().lower()))
-        if actor is None or actor.role is not Role.OFFICE:
-            sys.exit(f"운영자 계정을 찾을 수 없습니다: {args.actor}")
+        if actor is None or not permissions.is_manager(actor):
+            sys.exit(f"협의체 관리자 계정을 찾을 수 없습니다: {args.actor}")
 
         for case in targets:
             identity_service.purge_expired_identity(

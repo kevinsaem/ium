@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app import accounts, identity_service, invites, matching, retention, tenancy
+from app import accounts, identity_service, matching, retention, tenancy
 from app.db import get_db
 from app.deps import require_manager, require_role
 from app.forms import HOUSEHOLD_SIZE, parse_optional_int
@@ -27,7 +27,6 @@ from app.models import (
     ThanksMessage,
     User,
 )
-from app.models.invite import DEFAULT_DAYS, DEFAULT_MAX_USES
 from app.rendering import flash, render
 from app.reporting import build_monthly_report
 from app.timeutil import current_month
@@ -568,201 +567,6 @@ def register_donor_account(
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
     response.headers["Pragma"] = "no-cache"
     return response
-
-
-def _manage_page(request: Request, db: Session, user: User, **extra):
-    """매니저 화면 — 위원이 생기는 두 길, 잠긴 계정, 운영팀 연락처.
-
-    위원 등록을 운영자 화면이 아니라 여기에 둔다. 관리자 = 매니저 = 협의체당 한 사람
-    (2026-10-24 결정)이므로, 위원을 들이는 사람과 후원자를 승인하는 사람이 같다.
-    """
-    council = user.council
-    return render(
-        request,
-        "member/manage.html",
-        user,
-        "manage",
-        locked=accounts.locked_accounts(db, user),
-        policy=retention.current(db, user.council_id),
-        max_failed=accounts.MAX_FAILED_LOGINS,
-        members=accounts.council_members(db, user),
-        pending=invites.pending_members(db, user.council_id),
-        codes=invites.listing(db, user.council_id),
-        join_locked=council is not None and council.join_is_locked,
-        join_url=f"/c/{council.slug}/join" if council is not None else None,
-        max_failed_codes=invites.MAX_FAILED_CODES,
-        invite_defaults={"days": DEFAULT_DAYS, "max_uses": DEFAULT_MAX_USES},
-        **extra,
-    )
-
-
-@router.get("/manage")
-def manage(request: Request, user: User = Depends(manager_dep), db: Session = Depends(get_db)):
-    return _manage_page(request, db, user)
-
-
-@router.post("/manage/invites")
-def create_invite(
-    request: Request,
-    days: str = Form(""),
-    max_uses: str = Form(""),
-    note: str = Form(""),
-    user: User = Depends(manager_dep),
-    db: Session = Depends(get_db),
-):
-    """초대 코드를 발급한다.
-
-    코드는 임시 비밀번호와 달리 한 번만 보여 주고 숨기지 않는다. 여러 사람에게
-    전하는 값이고, 관리자가 "그 코드 뭐였죠" 를 다시 물을 자리가 있어야 한다.
-    유효기간·사용 횟수·무효화가 그 대신의 방어다.
-    """
-    try:
-        invite = invites.create(db, user, days=days, max_uses=max_uses, note=note)
-    except invites.InviteError as exc:
-        flash(request, str(exc))
-        return RedirectResponse("/member/manage", status_code=303)
-
-    flash(request, f"초대 코드 {invite.code} 를 발급했습니다.")
-    return RedirectResponse("/member/manage", status_code=303)
-
-
-@router.post("/manage/invites/{invite_id}/revoke")
-def revoke_invite(
-    invite_id: int,
-    request: Request,
-    user: User = Depends(manager_dep),
-    db: Session = Depends(get_db),
-):
-    invite = db.get(MemberInvite, invite_id)
-    if invite is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="초대 코드를 찾을 수 없습니다.")
-    tenancy.assert_same(user, invite)
-    try:
-        invites.revoke(db, user, invite)
-    except invites.InviteError as exc:
-        flash(request, str(exc))
-        return RedirectResponse("/member/manage", status_code=303)
-
-    flash(request, f"초대 코드 {invite.code} 를 무효화했습니다.")
-    return RedirectResponse("/member/manage", status_code=303)
-
-
-@router.post("/manage/join/unlock")
-def unlock_join(
-    request: Request, user: User = Depends(manager_dep), db: Session = Depends(get_db)
-):
-    try:
-        invites.unlock_join(db, user, user.council)
-    except invites.InviteError as exc:
-        flash(request, str(exc))
-        return RedirectResponse("/member/manage", status_code=303)
-
-    flash(request, "위원 가입 잠금을 해제했습니다.")
-    return RedirectResponse("/member/manage", status_code=303)
-
-
-@router.post("/manage/members")
-def register_member(
-    request: Request,
-    name: str = Form(...),
-    email: str = Form(...),
-    note: str = Form(""),
-    user: User = Depends(manager_dep),
-    db: Session = Depends(get_db),
-):
-    """관리자가 대신 등록하는 길 — 임시 비밀번호를 한 번만 보여 준다.
-
-    회의 자리에서 명단을 받아 넣는 경우다. 코드로 가입하는 길과 달리 본인이 화면 앞에
-    없으므로 임시 비밀번호를 만들어 전달하고, 첫 로그인에서 본인이 바꾼다.
-    """
-    try:
-        member, temp = accounts.issue_member(db, user, name=name, email=email, note=note)
-    except accounts.AccountError as exc:
-        flash(request, str(exc))
-        return RedirectResponse("/member/manage", status_code=303)
-
-    response = _manage_page(
-        request, db, user,
-        issued={"user": member, "temp": temp},
-        flash=f"{member.name} 위원 계정을 발급했습니다.",
-    )
-    response.headers["Cache-Control"] = "no-store"
-    return response
-
-
-@router.post("/manage/members/{member_id}/approve")
-def approve_member(
-    member_id: int,
-    request: Request,
-    user: User = Depends(manager_dep),
-    db: Session = Depends(get_db),
-):
-    target = _account(db, member_id, user)
-    try:
-        accounts.approve_member(db, user, target)
-    except accounts.AccountError as exc:
-        flash(request, str(exc))
-        return RedirectResponse("/member/manage", status_code=303)
-
-    flash(request, f"{target.name} 위원을 승인했습니다. 이제 케이스를 맡을 수 있습니다.")
-    return RedirectResponse("/member/manage", status_code=303)
-
-
-@router.post("/manage/members/{member_id}/reject")
-def reject_member(
-    member_id: int,
-    request: Request,
-    reason: str = Form(""),
-    user: User = Depends(manager_dep),
-    db: Session = Depends(get_db),
-):
-    target = _account(db, member_id, user)
-    try:
-        accounts.reject_member(db, user, target, reason)
-    except accounts.AccountError as exc:
-        flash(request, str(exc))
-        return RedirectResponse("/member/manage", status_code=303)
-
-    flash(request, f"{target.name}님의 가입을 거절했습니다.")
-    return RedirectResponse("/member/manage", status_code=303)
-
-
-@router.post("/manage/unlock/{user_id}")
-def unlock_account(
-    user_id: int,
-    request: Request,
-    user: User = Depends(manager_dep),
-    db: Session = Depends(get_db),
-):
-    target = _account(db, user_id, user)
-    try:
-        accounts.unlock_by_manager(db, user, target)
-    except accounts.AccountError as exc:
-        flash(request, str(exc))
-        return RedirectResponse("/member/manage", status_code=303)
-
-    flash(request, f"{target.name}님의 잠금을 해제했습니다.")
-    return RedirectResponse("/member/manage", status_code=303)
-
-
-@router.post("/manage/contact")
-def update_contact(
-    request: Request,
-    contact: str = Form(""),
-    user: User = Depends(manager_dep),
-    db: Session = Depends(get_db),
-):
-    try:
-        policy = retention.update_team_contact(db, user, contact)
-    except retention.PolicyError as exc:
-        flash(request, str(exc))
-        return RedirectResponse("/member/manage", status_code=303)
-
-    if policy.team_contact:
-        flash(request, f"운영팀 연락처를 '{policy.team_contact}' 로 저장했습니다.")
-    else:
-        flash(request, "운영팀 연락처를 비웠습니다. 로그인 화면에 연락처가 뜨지 않습니다.")
-    return RedirectResponse("/member/manage", status_code=303)
 
 
 @router.get("/report")

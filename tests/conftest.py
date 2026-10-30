@@ -117,9 +117,13 @@ def other_council(db) -> Council:
 @pytest.fixture()
 def seeded(db, council) -> dict[str, User]:
     cid = council.id
-    office = User(
-        email="office@ium.test", password_hash=hash_password("ium1234"),
-        name="협의체 운영자", role=Role.OFFICE, council_id=cid,
+    # 운영자 역할은 폐기했다 (2026-10-24 결정). 이 자리는 '관리자가 아닌 평범한 위원'
+    # 한 명으로 남겨 둔다 — 관리자만 할 수 있는 일을 확인하는 테스트에 쓰인다.
+    # 키 이름을 "office" 그대로 두면 없는 역할을 가리키게 되므로 member3 으로 바꿨다.
+    member3 = User(
+        email="member3@ium.test", password_hash=hash_password("ium1234"),
+        name="김복지 위원", role=Role.MEMBER, council_id=cid,
+        approved_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     member1 = User(
         email="member1@ium.test", password_hash=hash_password("ium1234"),
@@ -140,7 +144,7 @@ def seeded(db, council) -> dict[str, User]:
         # 승인된 후원자 (위원회 결정, 안건 10). 승인 흐름은 따로 테스트한다.
         approved_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
     )
-    db.add_all([office, member1, member2, donor])
+    db.add_all([member3, member1, member2, donor])
     db.flush()
 
     shop = Shop(council_id=cid, owner_id=donor.id, name="푸른세탁소", category="세탁", walk_minutes=6, is_certified=True)
@@ -174,7 +178,7 @@ def seeded(db, council) -> dict[str, User]:
         )
     db.commit()
     return {
-        "office": office,
+        "member3": member3,
         "member1": member1,
         "member2": member2,
         "donor": donor,

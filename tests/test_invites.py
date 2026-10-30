@@ -72,7 +72,7 @@ def test_a_code_typed_loosely_still_works(client, db, code):
 
 def test_only_a_manager_issues_codes(db, seeded):
     """위원을 들이는 사람과 후원자를 승인하는 사람이 같다 (2026-10-24 결정)."""
-    for key in ("member2", "office", "donor"):
+    for key in ("member2", "member3", "donor"):
         with pytest.raises(invites.InviteError, match="매니저"):
             invites.create(db, seeded[key])
 
@@ -189,8 +189,8 @@ def test_the_manager_unlocks_the_join_screen(client, db, seeded, manager):
     assert db.get(Council, council.id).join_is_locked is True
 
     _login(client, "member1@ium.test")
-    assert "위원 가입이 잠겨 있습니다" in client.get("/member/manage").text
-    client.post("/member/manage/join/unlock")
+    assert "위원 가입이 잠겨 있습니다" in client.get("/manage/people").text
+    client.post("/manage/join/unlock")
 
     db.expire_all()
     refreshed = db.get(Council, council.id)
@@ -260,11 +260,11 @@ def test_the_manager_approves_and_the_screens_open(client, db, seeded, code):
     member = db.scalar(select(User).where(User.email == "new@ium.test"))
 
     _login(client, "member1@ium.test")
-    page = client.get("/member/manage").text
+    page = client.get("/manage/people").text
     assert "승인 대기 위원" in page
     assert "새 위원" in page
 
-    client.post(f"/member/manage/members/{member.id}/approve")
+    client.post(f"/manage/members/{member.id}/approve")
     db.expire_all()
     assert db.get(User, member.id).is_approved is True
 
@@ -279,7 +279,7 @@ def test_rejecting_keeps_the_account_as_a_record(client, db, seeded, code):
 
     _login(client, "member1@ium.test")
     client.post(
-        f"/member/manage/members/{member.id}/reject",
+        f"/manage/members/{member.id}/reject",
         data={"reason": "위촉 명단에 없는 분"},
     )
 
@@ -326,7 +326,7 @@ def test_a_member_issued_by_the_manager_needs_no_approval(client, db, seeded):
     """관리자가 이름과 이메일을 받아 직접 넣은 계정은 발급이 곧 승인이다."""
     _login(client, "member1@ium.test")
     res = client.post(
-        "/member/manage/members",
+        "/manage/members",
         data={"name": "직접 등록 위원", "email": "direct@ium.test", "note": "회의 명단"},
     )
     assert "임시 비밀번호" in res.text
@@ -344,10 +344,12 @@ def test_the_temporary_password_never_reaches_the_cookie(client, db, seeded):
 
     _login(client, "member1@ium.test")
     res = client.post(
-        "/member/manage/members",
+        "/manage/members",
         data={"name": "직접 등록 위원", "email": "direct@ium.test", "note": ""},
     )
-    temp = re.search(r'<input value="([^"]+)" readonly', res.text).group(1)
+    match = re.search(r'class="temp-password"[^>]*>([a-z0-9-]+)<', res.text)
+    assert match, "임시 비밀번호가 화면에 없습니다"
+    temp = match.group(1)
     cookie = client.cookies.get("session") or ""
     assert cookie, "세션 쿠키가 없으면 이 테스트는 아무것도 증명하지 않는다"
     assert temp not in cookie
@@ -390,7 +392,7 @@ def test_a_manager_only_sees_their_own_codes(client, db, seeded, other_council, 
     assert [i.id for i in invites.listing(db, other_council.id)] == [theirs.id]
 
     _login(client, "member1@ium.test")
-    body = client.get("/member/manage").text
+    body = client.get("/manage/people").text
     assert code.code in body
     assert theirs.code not in body
 
@@ -410,7 +412,7 @@ def test_a_manager_cannot_revoke_another_councils_code(client, db, seeded, other
     theirs = invites.create(db, other_manager, days=7, max_uses=1)
 
     _login(client, "member1@ium.test")
-    body = client.post(f"/member/manage/invites/{theirs.id}/revoke").text
+    body = client.post(f"/manage/invites/{theirs.id}/revoke").text
 
     assert "다른 협의체" in body
     db.expire_all()

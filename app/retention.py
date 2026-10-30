@@ -1,11 +1,11 @@
 """식별정보 보관 기한.
 
 위원회 결정(2026-09-19, 안건 01): 케이스를 종결한 뒤 3개월까지 보관하고 그 뒤에 파기한다.
-기간은 하드코딩하지 않고 운영자가 화면에서 바꾼다 (Policy.identity_retention_months).
+기간은 하드코딩하지 않고 관리자가 화면에서 바꾼다 (Policy.identity_retention_months).
 
 파기 자체는 자동으로 하지 않는다. 되돌릴 수 없는 일이라 누가 언제 했는지가 기록에 남아야
 하고, 담당 위원이 누르는 것이 기본이다. 다만 기한이 지나도 아무도 모르면 보관 기간은
-의미가 없으므로, 운영자 화면에 기한과 초과 여부를 드러내고 서버에서 일괄 파기할 명령을
+의미가 없으므로, 관리자 화면에 기한과 초과 여부를 드러내고 서버에서 일괄 파기할 명령을
 따로 둔다 (python -m app.purge_expired).
 """
 from __future__ import annotations
@@ -93,7 +93,7 @@ def deadline(case: Case, months: int) -> date | None:
 
 @dataclass
 class RetentionStatus:
-    """운영자·위원 화면에 그대로 뿌릴 수 있는 한 줄 요약."""
+    """위원 화면에 그대로 뿌릴 수 있는 한 줄 요약."""
 
     case: Case
     deadline: date | None

@@ -195,7 +195,7 @@ def test_the_same_case_code_can_be_used_in_two_councils(db, seeded, neighbor):
 def test_metrics_are_counted_per_council(db, seeded, neighbor):
     """지표가 섞이면 '우리 동이 몇 건 했는지' 가 사라진다."""
     window = pilot.window(retention.current(db))
-    ours = pilot.funnel(db, window, seeded["office"])
+    ours = pilot.funnel(db, window, seeded["member1"])
     theirs = pilot.funnel(db, window, neighbor["member"])
 
     assert theirs["certified_shops"] == 1
@@ -376,7 +376,7 @@ def test_every_manager_action_stops_at_the_line(client, db, seeded, neighbor):
     assert "다른 협의체" in client.post(
         f"/member/donors/{ours.id}/notes", data={"body": "남의 동 메모"}
     ).text
-    assert "다른 협의체" in client.post(f"/member/manage/unlock/{ours.id}").text
+    assert "다른 협의체" in client.post(f"/manage/unlock/{ours.id}").text
 
     from app.models import DonorNote
 
@@ -404,14 +404,14 @@ def test_a_member_cannot_match_a_neighbors_offer_through_the_url(client, db, see
 def test_the_office_screens_stop_at_the_line(client, db, seeded, neighbor):
     """운영자 동작도 자기 협의체 안이다 — 위원 위촉 해제·비밀번호 초기화·가게 인증."""
     other_member = neighbor["member"]
-    _login(client, "office@ium.test")
+    _login(client, "member1@ium.test")
 
-    assert "다른 협의체" in client.post(f"/office/members/{other_member.id}/reset").text
-    assert "다른 협의체" in client.post(f"/office/members/{other_member.id}/toggle").text
+    assert "다른 협의체" in client.post(f"/manage/members/{other_member.id}/reset").text
+    assert "다른 협의체" in client.post(f"/manage/members/{other_member.id}/toggle").text
     assert "다른 협의체" in client.post(
-        f"/office/members/{other_member.id}/manager", data={"grant": "1"}
+        f"/manage/members/{other_member.id}/manager", data={"grant": "1"}
     ).text
-    assert "다른 협의체" in client.post(f"/office/shops/{neighbor['shop'].id}/certify").text
+    assert "다른 협의체" in client.post(f"/manage/shops/{neighbor['shop'].id}/certify").text
 
     db.expire_all()
     assert db.get(User, other_member.id).is_active is True

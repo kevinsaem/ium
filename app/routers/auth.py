@@ -2,7 +2,7 @@
 
 로그인 방법이 역할마다 다르다 (위원회 결정, 안건 07).
 
-- 위원·운영자: 이메일 + 비밀번호. 관리자가 계정을 발급한다.
+- 위원: 이메일 + 비밀번호. 관리자가 계정을 발급한다.
 - 후원자: 휴대폰 번호 + 숫자 4자리. 직접 가입하거나, 위원이 대신 등록해 준다.
 
 한 화면에 두 칸을 같이 두고 들어온 값으로 갈라 보낸다. 가게를 하다 잠깐 들어오는 분에게
@@ -33,7 +33,7 @@ router = APIRouter()
 
 
 def _demo_users(db: Session) -> list[User]:
-    """로그인 화면의 계정 바로가기 — 개발 전용. 운영에서 켜 두면 위원·운영자 명단이 공개된다."""
+    """로그인 화면의 계정 바로가기 — 개발 전용. 운영에서 켜 두면 위원 명단이 공개된다."""
     if settings.is_production:
         return []
     return list(db.scalars(select(User).order_by(User.role, User.id)).all())
@@ -163,7 +163,7 @@ def _start_session(request: Request, user: User):
 def _remember_device(request: Request, db: Session, user: User, response):
     """후원자 기기만 기억한다.
 
-    위원·운영자는 식별정보와 승인 권한이 걸려 있어 기억해 두지 않는다. 결정도 후원자를
+    위원는 식별정보와 승인 권한이 걸려 있어 기억해 두지 않는다. 결정도 후원자를
     두고 한 이야기였다 ("본인 기기는 한동안 인증 없이 사용하고").
     """
     if user.role is not Role.DONOR or user.must_change_password:
