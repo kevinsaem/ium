@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, text, true
@@ -13,6 +13,43 @@ if TYPE_CHECKING:
 
 # 파일럿의 첫 협의체. 1차 구현은 선부3동 하나만 전제했고, 그 데이터를 이 협의체로 옮긴다.
 DEFAULT_SLUG = "sunbu3"
+
+# 초대 코드를 틀렸을 때의 대기 시간. 누적 실패가 쌓이면 늘어나지만, 영구히 잠기지는 않는다.
+#
+# 계정 잠금(안건 15)은 시간이 지나도 풀리지 않는다. 그 결정이 옳은 이유는 계정의 아이디가
+# 전화번호여서다 — 추측할 수 있는 아이디를 시간으로 풀어 주면 공격자는 기다리기만 하면 된다.
+#
+# 초대 코드는 사정이 다르다. 31글자 8자리면 8,500억 가지이고 그중 쓸 수 있는 코드는 몇 개뿐
+# 이라, 속도만 묶어도 추측이 성립하지 않는다. 그래서 영구 잠금을 쓰지 않는다.
+#
+# 영구 잠금으로 두었을 때의 대가가 컸다. 지나가는 사람이 아무 코드나 다섯 번 넣으면, 그 동의
+# 위원 모집이 관리자가 손을 쓸 때까지 멈췄다. 위원 가입은 1년에 몇 번 있는 일이라 한 시간쯤
+# 늦는 것은 거의 피해가 없지만, 아무도 모르는 사이에 멈춰 있는 것은 피해다.
+JOIN_BACKOFF: tuple[tuple[int, timedelta], ...] = (
+    (5, timedelta(minutes=1)),
+    (10, timedelta(minutes=5)),
+    (20, timedelta(minutes=30)),
+    (40, timedelta(hours=1)),   # 상한. 더 쌓여도 이 이상 기다리게 하지 않는다.
+)
+
+# 조용히 지나가면 실패 기록을 잊는다. 남의 오타 네 번이 반년 뒤의 가입을 늦추지 않게.
+JOIN_DECAY = timedelta(hours=24)
+
+
+def join_wait(attempts: int) -> timedelta | None:
+    """누적 실패 횟수에 걸리는 대기 시간. 아직 걸리는 단계가 아니면 None."""
+    wait = None
+    for threshold, window in JOIN_BACKOFF:
+        if attempts >= threshold:
+            wait = window
+    return wait
+
+
+def _aware(value: datetime | None) -> datetime | None:
+    """SQLite 는 시간대를 떼고 돌려준다. 비교 전에 UTC 로 붙여 준다."""
+    if value is None:
+        return None
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
 class Council(Base, TimestampMixin):
@@ -48,17 +85,14 @@ class Council(Base, TimestampMixin):
     approved_by_id: Mapped[int | None] = mapped_column(ForeignKey("user.id"), default=None)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
 
-    # 초대 코드를 연달아 틀리면 이 협의체의 위원 가입 화면이 잠긴다. 계정 잠금과 같은
-    # 방식이고(안건 15), 관리자가 화면에서 풀어 준다.
-    #
-    # 알고 둔 대가가 있다. 지나가는 사람이 아무 코드나 여러 번 넣어 모집을 막을 수 있다.
-    # 그래도 두는 이유는 반대쪽이 더 무겁기 때문이다 — 코드를 무한히 넣어 볼 수 있으면
-    # 위원 자리가 추측으로 열리고, 위원은 식별정보를 읽는 사람이다. 잠기면 관리자
-    # 화면에 뜨고 한 번 눌러 풀 수 있다.
+    # 초대 코드를 틀린 횟수와 마지막으로 틀린 시각. 둘을 합쳐 '언제까지 기다려야 하는가'
+    # 를 계산한다 (JOIN_BACKOFF). 잠긴 시각이 아니라 마지막 실패 시각인 것이 중요하다 —
+    # 실패가 또 들어오면 대기가 그 시점부터 다시 시작되고, 한동안 조용하면 기록이
+    # 잊힌다 (JOIN_DECAY).
     join_failed_attempts: Mapped[int] = mapped_column(
         Integer, default=0, server_default=text("0")
     )
-    join_locked_at: Mapped[datetime | None] = mapped_column(
+    join_last_failed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
     )
 
@@ -76,8 +110,46 @@ class Council(Base, TimestampMixin):
         return self.approved_at is not None
 
     @property
+    def join_failures_are_stale(self) -> bool:
+        """마지막 실패가 오래돼 기록을 잊을 때가 됐는가."""
+        last = _aware(self.join_last_failed_at)
+        return last is None or (datetime.now(timezone.utc) - last) > JOIN_DECAY
+
+    @property
+    def join_locked_until(self) -> datetime | None:
+        """가입을 다시 시도할 수 있는 시각. 기다릴 필요가 없으면 None."""
+        last = _aware(self.join_last_failed_at)
+        if last is None:
+            return None
+        wait = join_wait(self.join_failed_attempts or 0)
+        return None if wait is None else last + wait
+
+    @property
     def join_is_locked(self) -> bool:
-        return self.join_locked_at is not None
+        until = self.join_locked_until
+        return until is not None and until > datetime.now(timezone.utc)
+
+    @property
+    def join_seconds_left(self) -> int:
+        """남은 대기 시간(초). 잠겨 있지 않으면 0."""
+        until = self.join_locked_until
+        if until is None:
+            return 0
+        left = (until - datetime.now(timezone.utc)).total_seconds()
+        return max(0, int(left + 0.999))   # 0.4초 남았을 때 '0초' 라고 하지 않는다
+
+    @property
+    def join_wait_label(self) -> str:
+        """사람에게 보여 줄 남은 시간. "3분" 처럼 읽히게 올림한다."""
+        seconds = self.join_seconds_left
+        if seconds <= 0:
+            return ""
+        if seconds < 60:
+            return f"{seconds}초"
+        minutes = -(-seconds // 60)
+        if minutes < 60:
+            return f"{minutes}분"
+        return f"{-(-minutes // 60)}시간"
 
     def __repr__(self) -> str:
         return f"<Council {self.slug} {self.label}>"

@@ -144,10 +144,12 @@ def test_revoking_twice_is_refused(db, manager, code):
         invites.revoke(db, manager, code)
 
 
-def test_a_wrong_code_locks_the_join_screen(client, db, seeded, manager):
+def test_a_wrong_code_makes_you_wait(client, db, seeded, manager):
     """코드를 무한히 넣어 볼 수 있으면 위원 자리가 추측으로 열린다.
 
-    잠금은 시간이 지나 풀리지 않고 관리자가 푼다 — 계정 잠금과 같다 (안건 15).
+    막는 방식은 영구 잠금이 아니라 늘어나는 대기 시간이다. 영구 잠금으로 두었을 때는
+    지나가는 사람이 다섯 번 틀리는 것만으로 그 동의 위원 모집이 관리자가 손을 쓸 때까지
+    멈췄다. 코드가 8,500억 가지 중 몇 개뿐이라 속도만 묶으면 추측은 성립하지 않는다.
     """
     council = seeded["council"]
     for i in range(invites.MAX_FAILED_CODES - 1):
@@ -158,19 +160,119 @@ def test_a_wrong_code_locks_the_join_screen(client, db, seeded, manager):
     assert db.get(Council, council.id).join_is_locked is False
 
     body = _join(client, "WRONGXYZ", email="last@ium.test").text
-    assert "잠겼습니다" in body
+    assert "다시 시도해 주세요" in body
     db.expire_all()
     assert db.get(Council, council.id).join_is_locked is True
 
-    # 잠긴 뒤에는 맞는 코드도 통하지 않는다
+    # 대기 중에는 맞는 코드도 통하지 않는다
     code = invites.create(db, manager)
     body = _join(client, code.code).text
-    assert "잠겼" in body
+    assert "다시 시도해 주세요" in body
     assert db.scalar(select(User).where(User.email == "new@ium.test")) is None
 
 
+def test_the_wait_grows_with_the_attempts(db, seeded):
+    """다섯 번은 1분, 열 번은 5분, 스무 번은 30분. 상한은 한 시간이다."""
+    from app.models.council import join_wait
+
+    assert join_wait(4) is None
+    assert join_wait(5) == timedelta(minutes=1)
+    assert join_wait(9) == timedelta(minutes=1)
+    assert join_wait(10) == timedelta(minutes=5)
+    assert join_wait(20) == timedelta(minutes=30)
+    assert join_wait(40) == timedelta(hours=1)
+    assert join_wait(10_000) == timedelta(hours=1), "상한이 없으면 영구 잠금과 같아진다"
+
+
+def test_the_wait_lifts_by_itself(client, db, seeded, manager):
+    """관리자가 풀어 주지 않아도 시간이 지나면 열린다.
+
+    이것이 영구 잠금과의 차이다. 아무도 모르는 사이에 모집이 멈춰 있는 상태를 만들지
+    않는다.
+    """
+    council = seeded["council"]
+    for i in range(invites.MAX_FAILED_CODES):
+        _join(client, "WRONGXYZ", email=f"x{i}@ium.test")
+
+    db.expire_all()
+    council = db.get(Council, council.id)
+    assert council.join_is_locked is True
+
+    # 1분이 지난 것으로 둔다 — 시계를 멈추지 않고 마지막 실패 시각을 뒤로 밀어 확인한다
+    council.join_last_failed_at = datetime.now(timezone.utc) - timedelta(minutes=2)
+    db.commit()
+    assert council.join_is_locked is False
+
+    code = invites.create(db, manager)
+    _join(client, code.code)
+    assert db.scalar(select(User).where(User.email == "new@ium.test")) is not None
+
+
+def test_a_later_failure_restarts_the_wait(client, db, seeded):
+    """대기가 풀린 뒤 또 틀리면 그 시점부터 다시, 그리고 더 길게 기다린다."""
+    council = seeded["council"]
+    for i in range(invites.MAX_FAILED_CODES):
+        _join(client, "WRONGXYZ", email=f"x{i}@ium.test")
+
+    db.expire_all()
+    council = db.get(Council, council.id)
+    council.join_last_failed_at = datetime.now(timezone.utc) - timedelta(minutes=2)
+    db.commit()
+    assert council.join_is_locked is False
+
+    _join(client, "WRONGXYZ", email="again@ium.test")
+    db.expire_all()
+    council = db.get(Council, council.id)
+    assert council.join_is_locked is True
+    assert council.join_failed_attempts == invites.MAX_FAILED_CODES + 1
+
+
+def test_quiet_time_forgets_the_failures(client, db, seeded, manager):
+    """남의 오타 네 번이 반년 뒤의 가입을 늦추지 않는다."""
+    council = seeded["council"]
+    for i in range(invites.MAX_FAILED_CODES - 1):
+        _join(client, "WRONGXYZ", email=f"x{i}@ium.test")
+
+    db.expire_all()
+    council = db.get(Council, council.id)
+    assert council.join_failed_attempts == invites.MAX_FAILED_CODES - 1
+
+    # 하루가 지난 것으로 둔다
+    council.join_last_failed_at = datetime.now(timezone.utc) - timedelta(days=2)
+    db.commit()
+    assert council.join_failures_are_stale is True
+
+    # 다시 한 번 틀려도 '다섯 번째' 가 아니라 '첫 번째' 다
+    body = _join(client, "WRONGXYZ", email="fresh@ium.test").text
+    assert f"{invites.MAX_FAILED_CODES - 1}번 남음" in body
+    db.expire_all()
+    assert db.get(Council, council.id).join_is_locked is False
+
+
+def test_the_remaining_time_is_said_in_words(db, seeded):
+    """"60초" 가 아니라 "1분" 으로 읽히게 한다."""
+    council = seeded["council"]
+    council.join_failed_attempts = invites.MAX_FAILED_CODES
+    council.join_last_failed_at = datetime.now(timezone.utc)
+    db.commit()
+    assert council.join_wait_label == "1분"
+
+    council.join_failed_attempts = 20
+    db.commit()
+    assert council.join_wait_label == "30분"
+
+    council.join_failed_attempts = 40
+    db.commit()
+    assert council.join_wait_label == "1시간"
+
+    council.join_failed_attempts = 0
+    council.join_last_failed_at = None
+    db.commit()
+    assert council.join_wait_label == ""
+
+
 def test_a_successful_join_clears_the_failure_count(client, db, seeded, code):
-    """남의 오타가 쌓여 모집이 막히는 상황을 조금이라도 줄인다."""
+    """남의 오타가 쌓여 뒤에 오는 분의 가입이 늦어지는 일을 줄인다."""
     council = seeded["council"]
     _join(client, "WRONGXYZ", email="x@ium.test")
     db.expire_all()
@@ -181,7 +283,8 @@ def test_a_successful_join_clears_the_failure_count(client, db, seeded, code):
     assert db.get(Council, council.id).join_failed_attempts == 0
 
 
-def test_the_manager_unlocks_the_join_screen(client, db, seeded, manager):
+def test_the_manager_can_lift_the_wait_right_away(client, db, seeded, manager):
+    """기다리면 저절로 풀리지만, 지금 가입하려는 위원이 있으면 바로 풀어 줄 수 있다."""
     council = seeded["council"]
     for i in range(invites.MAX_FAILED_CODES):
         _join(client, "WRONGXYZ", email=f"x{i}@ium.test")
@@ -189,13 +292,29 @@ def test_the_manager_unlocks_the_join_screen(client, db, seeded, manager):
     assert db.get(Council, council.id).join_is_locked is True
 
     _login(client, "member1@ium.test")
-    assert "위원 가입이 잠겨 있습니다" in client.get("/manage/people").text
+    page = client.get("/manage/people").text
+    assert "가입 대기 중" in page
+    assert "1분 남음" in page
     client.post("/manage/join/unlock")
 
     db.expire_all()
     refreshed = db.get(Council, council.id)
     assert refreshed.join_is_locked is False
     assert refreshed.join_failed_attempts == 0
+
+
+def test_the_manager_sees_failures_before_the_wait_kicks_in(client, db, seeded):
+    """조용히 쌓이다 갑자기 막히는 것보다, 쌓이는 중인 것이 먼저 보이는 쪽이 낫다.
+
+    코드가 새고 있다는 신호이기도 하다 — 관리자가 보고 먼저 무효화할 수 있다.
+    """
+    _join(client, "WRONGXYZ", email="x@ium.test")
+    _join(client, "WRONGXYZ", email="y@ium.test")
+
+    _login(client, "member1@ium.test")
+    page = client.get("/manage/people").text
+    assert "최근 코드 실패 2회" in page
+    assert "가입 대기 중" not in page
 
 
 def test_only_a_manager_unlocks_the_join_screen(db, seeded):

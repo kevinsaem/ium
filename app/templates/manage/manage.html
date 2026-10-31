@@ -40,11 +40,11 @@
     </div>
   </div>
   <div class="btnrow">
-    <form method="post" action="/member/manage/members/{{ m.id }}/approve">
+    <form method="post" action="/manage/members/{{ m.id }}/approve">
       <button class="btn sm" type="submit" style="width:100%">승인</button>
     </form>
   </div>
-  <form method="post" action="/member/manage/members/{{ m.id }}/reject">
+  <form method="post" action="/manage/members/{{ m.id }}/reject">
     <div class="field" style="margin:11px 0 0">
       <label>거절 사유</label>
       <input name="reason" placeholder="예) 위촉 명단에 없는 분" required>
@@ -56,18 +56,26 @@
 {% endif %}
 
 <div class="sectit">위원 초대 코드</div>
-{% if join_locked %}
-<div class="card" style="cursor:default;border-color:var(--warn, var(--accent))">
+{% if join_locked or join_failures %}
+<div class="card" style="cursor:default{% if join_locked %};border-color:var(--accent){% endif %}">
   <div class="meta">
-    <h3>위원 가입이 잠겨 있습니다</h3>
-    <div class="sub">초대 코드를 {{ max_failed_codes }}회 연속 잘못 입력했습니다.</div>
+    {% if join_locked %}
+    <h3>가입 대기 중 · {{ join_wait_label }} 남음</h3>
+    <div class="sub">초대 코드를 {{ join_failures }}회 잘못 입력해 잠시 막아 두었습니다.</div>
+    {% else %}
+    <h3>최근 코드 실패 {{ join_failures }}회</h3>
+    <div class="sub">{{ max_failed_codes }}회가 되면 잠시 기다려야 합니다.</div>
+    {% endif %}
   </div>
   <p class="legend" style="margin-top:10px">
-    누군가 코드를 추측하려 했을 수 있습니다. 풀기 전에 발급해 둔 코드를 한 번 살펴보시고,
-    새어 나간 것 같으면 먼저 무효화해 주세요.
+    {% if join_locked %}시간이 지나면 저절로 풀립니다. 지금 가입하려는 위원이 기다리고
+    있다면 아래에서 바로 풀어 주세요.<br>{% endif %}
+    실패가 쌓이고 있다면 누군가 코드를 추측하려 했을 수 있습니다. 발급해 둔 코드를 한 번
+    살펴보시고, 새어 나간 것 같으면 먼저 무효화해 주세요.
   </p>
-  <form method="post" action="/member/manage/join/unlock">
-    <button class="btn sm" type="submit" style="width:100%">가입 잠금 해제</button>
+  <form method="post" action="/manage/join/unlock">
+    <button class="btn {{ 'sm' if join_locked else 'ghost sm' }}" type="submit"
+            style="width:100%">{{ '지금 바로 풀기' if join_locked else '실패 기록 지우기' }}</button>
   </form>
 </div>
 {% endif %}
@@ -92,7 +100,7 @@
     </div>
   </div>
   {% if not c.is_revoked %}
-  <form method="post" action="/member/manage/invites/{{ c.id }}/revoke"
+  <form method="post" action="/manage/invites/{{ c.id }}/revoke"
         onsubmit="return confirm('초대 코드 {{ c.code }} 를 무효화합니다. 이 코드로는 더 가입할 수 없습니다. 계속할까요?')">
     <button class="btn ghost sm" type="submit" style="width:100%">무효화</button>
   </form>
@@ -102,7 +110,7 @@
 <div class="empty" style="padding:22px">발급한 초대 코드가 없습니다.</div>
 {% endfor %}
 
-<form method="post" action="/member/manage/invites">
+<form method="post" action="/manage/invites">
   <div class="field">
     <label>유효기간 (일)</label>
     <input name="days" inputmode="numeric" value="{{ invite_defaults.days }}">
@@ -166,7 +174,7 @@
 {% endif %}
 
 <div class="sectit">위원 계정 직접 발급</div>
-<form method="post" action="/member/manage/members">
+<form method="post" action="/manage/members">
   <div class="field">
     <label>이름</label>
     <input name="name" placeholder="예) 이관희" required>
@@ -197,7 +205,7 @@
       <div class="sub">{{ u.locked_at | local }} 잠김</div>
     </div>
   </div>
-  <form method="post" action="/member/manage/unlock/{{ u.id }}">
+  <form method="post" action="/manage/unlock/{{ u.id }}">
     <button class="btn sm" type="submit" style="width:100%">잠금 해제</button>
   </form>
 </div>
@@ -230,7 +238,7 @@
 </p>
 
 <div class="sectit">운영팀 연락처</div>
-<form method="post" action="/member/manage/contact">
+<form method="post" action="/manage/contact">
   <div class="field">
     <label>로그인 화면에 띄울 연락처</label>
     <input name="contact" value="{{ policy.team_contact or '' }}"

@@ -691,6 +691,14 @@ def _manage_page(request: Request, db: Session, user: User, **extra):
         events=_account_events(db, user),
         event_labels=accounts.ACTION_LABELS,
         join_locked=council is not None and council.join_is_locked,
+        join_wait_label=council.join_wait_label if council is not None else "",
+        # 아직 대기가 걸리지 않은 실패도 보여 준다. 조용히 쌓이다가 갑자기 막히는 것보다
+        # "지금 세 번 틀렸습니다" 가 먼저 보이는 쪽이 낫다 — 코드가 새고 있다는 신호다.
+        join_failures=(
+            council.join_failed_attempts or 0
+            if council is not None and not council.join_failures_are_stale
+            else 0
+        ),
         join_url=f"/c/{council.slug}/join" if council is not None else None,
         max_failed_codes=invites.MAX_FAILED_CODES,
         invite_defaults={"days": DEFAULT_DAYS, "max_uses": DEFAULT_MAX_USES},
@@ -759,7 +767,7 @@ def unlock_join(
         flash(request, str(exc))
         return RedirectResponse("/manage", status_code=303)
 
-    flash(request, "위원 가입 잠금을 해제했습니다.")
+    flash(request, "위원 가입 대기를 해제했습니다. 지금 바로 가입할 수 있습니다.")
     return RedirectResponse("/manage", status_code=303)
 
 

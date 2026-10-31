@@ -364,6 +364,7 @@ def council_join_form(
         dong=council.dong,
         action=f"/c/{council.slug}/join",
         locked=council.join_is_locked,
+        wait_label=council.join_wait_label,
     )
 
 

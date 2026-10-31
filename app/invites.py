@@ -7,8 +7,12 @@ app/accounts.py 의 issue_member).
 붙여 새는 범위를 줄이고, 승인 대기로 새어도 막는다. 왜 그렇게까지 하는지는
 app/models/invite.py 의 MemberInvite 설명에 적어 두었다.
 
-코드를 틀린 횟수는 협의체에 쌓이고, 연달아 틀리면 그 협의체의 가입 화면이 잠긴다.
-잠금은 시간이 지나 풀리지 않고 관리자가 푼다 — 계정 잠금과 같다 (안건 15).
+코드를 틀린 횟수는 협의체에 쌓이고, 쌓일수록 다음 시도까지 기다려야 하는 시간이 늘어난다
+(app/models/council.py 의 JOIN_BACKOFF). 영구히 잠기지는 않는다 — 그 이유와, 계정 잠금
+(안건 15)과 다르게 둔 이유를 그 표 위에 적어 두었다.
+
+관리자는 기다리지 않고 바로 풀 수 있다. 안건 15 가 정한 '관리자가 푼다' 는 그대로 남아
+있고, 달라진 것은 '관리자가 풀어 주지 않으면 아무도 못 들어온다' 가 아니게 된 것이다.
 """
 from __future__ import annotations
 
@@ -19,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from app import permissions
 from app.models import Council, MemberInvite, Role, User
+from app.models.council import JOIN_BACKOFF
 from app.models.invite import (
     DEFAULT_DAYS,
     DEFAULT_MAX_USES,
@@ -27,8 +32,9 @@ from app.models.invite import (
     generate_code,
 )
 
-# 계정 잠금과 같은 횟수를 쓴다. 숫자를 따로 두면 "잠긴다" 는 말이 자리마다 다른 뜻이 된다.
-MAX_FAILED_CODES = 5
+# 처음 대기가 걸리는 횟수. 계정 잠금과 같은 숫자를 쓴다 — 다르게 두면 "다섯 번 틀리면" 이
+# 자리마다 다른 뜻이 된다. 이 뒤로는 JOIN_BACKOFF 의 단계를 따라 대기가 늘어난다.
+MAX_FAILED_CODES = JOIN_BACKOFF[0][0]
 
 
 class InviteError(ValueError):
@@ -115,21 +121,36 @@ def listing(db: Session, council_id: int) -> list[MemberInvite]:
 
 
 def _record_failure(db: Session, council: Council) -> int:
-    """틀린 횟수를 쌓고 남은 횟수를 돌려준다. 0 이면 방금 잠겼다."""
+    """틀린 횟수를 쌓고, 아직 대기가 걸리지 않았다면 남은 횟수를 돌려준다.
+
+    0 이면 방금 대기가 걸렸다 (council.join_wait_label 에 남은 시간이 있다).
+
+    한동안 조용했으면 먼저 기록을 잊는다. 그러지 않으면 작년에 누군가 네 번 틀린 협의체는
+    이번에 한 번만 틀려도 바로 대기에 걸린다.
+    """
+    if council.join_failures_are_stale:
+        council.join_failed_attempts = 0
+
     council.join_failed_attempts = (council.join_failed_attempts or 0) + 1
-    left = MAX_FAILED_CODES - council.join_failed_attempts
-    if left <= 0:
-        council.join_locked_at = datetime.now(timezone.utc)
-        left = 0
+    council.join_last_failed_at = datetime.now(timezone.utc)
     db.commit()
-    return left
+    db.refresh(council)
+
+    left = MAX_FAILED_CODES - council.join_failed_attempts
+    return max(0, left)
 
 
 def unlock_join(db: Session, manager: User, council: Council) -> Council:
+    """대기를 즉시 풀어 준다 — 관리자만.
+
+    대기는 시간이 지나면 저절로 풀린다. 그래도 이 버튼을 남겨 두는 이유는, 위원이 지금
+    가입하려고 기다리고 있을 때 관리자가 "조금만 기다려 주세요" 말고 할 수 있는 일이
+    있어야 하기 때문이다.
+    """
     if not permissions.is_manager(manager):
-        raise InviteError("가입 잠금 해제는 매니저 권한이 있는 위원만 할 수 있습니다.")
+        raise InviteError("가입 대기 해제는 매니저 권한이 있는 위원만 할 수 있습니다.")
     council.join_failed_attempts = 0
-    council.join_locked_at = None
+    council.join_last_failed_at = None
     db.commit()
     db.refresh(council)
     return council
@@ -168,7 +189,8 @@ def redeem(
 
     if council.join_is_locked:
         raise InviteError(
-            "초대 코드를 여러 번 잘못 입력해 가입이 잠겼습니다. 협의체 관리자에게 문의해 주세요."
+            f"초대 코드를 여러 번 잘못 입력했습니다. {council.join_wait_label} 뒤에 "
+            "다시 시도해 주세요. 급하시면 협의체 관리자에게 문의해 주세요."
         )
 
     invite = find(db, council, code)
@@ -176,8 +198,8 @@ def redeem(
         left = _record_failure(db, council)
         if left == 0:
             raise InviteError(
-                f"초대 코드를 {MAX_FAILED_CODES}회 잘못 입력해 가입이 잠겼습니다. "
-                "협의체 관리자에게 문의해 주세요."
+                f"초대 코드를 여러 번 잘못 입력했습니다. {council.join_wait_label} 뒤에 "
+                "다시 시도해 주세요. 급하시면 협의체 관리자에게 문의해 주세요."
             )
         raise InviteError(f"초대 코드가 올바르지 않습니다. ({left}번 남음)")
 
@@ -203,9 +225,10 @@ def redeem(
     )
 
     invite.used_count += 1
-    # 제대로 들어온 가입이 있으면 틀린 횟수는 지운다. 남의 오타가 쌓여 모집이 막히는
-    # 상황을 조금이라도 줄인다.
+    # 제대로 들어온 가입이 있으면 틀린 횟수를 지운다. 남의 오타가 쌓여 뒤에 오는 분의
+    # 가입이 늦어지는 일을 줄인다.
     council.join_failed_attempts = 0
+    council.join_last_failed_at = None
     db.commit()
     db.refresh(member)
     return member

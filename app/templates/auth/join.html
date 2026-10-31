@@ -11,11 +11,12 @@
   {% if locked %}
   <div class="card" style="cursor:default">
     <div class="meta">
-      <h3>가입이 잠겨 있습니다</h3>
+      <h3>{{ wait_label }} 뒤에 다시 시도해 주세요</h3>
       <div class="sub">초대 코드를 여러 번 잘못 입력했습니다.</div>
     </div>
     <p class="legend" style="margin-top:10px">
-      협의체 관리자가 풀어 주면 다시 가입하실 수 있습니다.
+      시간이 지나면 저절로 풀립니다. 급하시면 협의체 관리자에게 말씀해 주세요 — 바로
+      풀어 드릴 수 있습니다.
       {% if team_contact %}<br>운영팀 — <b>{{ team_contact }}</b>{% endif %}
     </p>
   </div>
