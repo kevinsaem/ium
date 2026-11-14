@@ -580,13 +580,22 @@ def test_the_two_approvals_block_different_things(client, db, seeded):
     assert db.get(User, waiting_donor.id).shop is not None, "승인 전에도 가게는 등록된다"
 
 
-def test_the_join_confirmation_is_not_overwritten(client, db, code):
-    """가입 직후 안내가 403 문구로 덮이지 않는다.
+def test_the_join_confirmation_actually_reaches_the_screen(client, db, code):
+    """가입 직후 안내가 화면까지 온다.
 
-    가입하면 세션이 열리고 역할 홈으로 가는데, 그 화면이 승인 대기로 막혀 있어서
-    "관리자 승인을 기다리는 계정입니다" 가 방금 띄운 "가입 신청이 접수되었습니다" 를
-    덮어썼다. 처음 가입한 사람에게는 접수가 됐다는 말이 먼저 필요하다.
+    두 번 잃어버린 자리다.
+
+    처음에는 403 문구가 덮었다 — 역할 홈으로 보냈더니 그 화면이 승인 대기로 막혀 있어서
+    "관리자 승인을 기다리는 계정입니다" 가 방금 띄운 안내를 밀어냈다.
+
+    고친 뒤에도 안 떴다. _start_session 이 세션 고정 공격을 막으려고 session.clear() 를
+    하는데, 안내를 그 전에 session["flash"] 에 넣고 있었다. 그래서 지워졌다.
+
+    처음 이 테스트는 "가입 신청이 접수되었습니다" 가 본문에 있는지만 봤고 — 승인 대기
+    화면 템플릿이 같은 문장을 갖고 있어서 통과했다. 아무것도 증명하지 못했다. 그래서
+    지금은 flash 칸에 들어왔는지를 본다.
     """
     body = _join(client, code.code).text
-    assert "가입 신청이 접수되었습니다" in body
-    assert "기다리는 중입니다" in body
+
+    assert '<div class="flash">새 위원님, 가입 신청이 접수되었습니다.' in body
+    assert "기다리는 중입니다" in body   # 승인 대기 화면이 맞다

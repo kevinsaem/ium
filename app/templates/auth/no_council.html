@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}이음 · 소속 협의체 없음{% endblock %}
+
+{% block frame %}
+<div class="auth">
+  <div class="mark">이음 <b>·</b> 理音</div>
+  <p class="lede">{{ stranded_user.name }}님, 이 계정에 소속 협의체가 없습니다.</p>
+
+  {% if error %}<div class="flash warn">{{ error }}</div>{% endif %}
+
+  <div class="card" style="cursor:default">
+    <div class="meta">
+      <h3>쓸 수 있는 화면이 없습니다</h3>
+      <div class="sub">{{ stranded_user.email or stranded_user.phone }}</div>
+    </div>
+    <p class="legend" style="margin-top:10px">
+      이음의 모든 자료는 협의체에 속합니다. 소속이 없으면 볼 수 있는 것도, 할 수 있는
+      것도 없습니다 — 빈 화면을 보여 드리는 대신 사실대로 알려 드립니다.<br>
+      운영팀에 말씀해 주시면 소속을 정해 드립니다.
+    </p>
+    {% if team_contact %}
+    <p class="legend">운영팀 — <b>{{ team_contact }}</b></p>
+    {% endif %}
+  </div>
+
+  <a class="btn ghost" href="/logout">로그아웃</a>
+</div>
+{% endblock %}

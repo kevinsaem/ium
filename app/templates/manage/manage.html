@@ -99,6 +99,19 @@
       </div>
     </div>
   </div>
+  {% if c.is_usable and join_path %}
+  {% set join_link = request.base_url|string ~ join_path[1:] ~ '?code=' ~ c.code %}
+  <div class="field" style="margin:11px 0 0">
+    <label>위원께 보낼 링크 (코드가 들어 있습니다)</label>
+    <input value="{{ join_link }}" readonly onclick="this.select()" style="font-size:11px">
+  </div>
+  <div class="btnrow">
+    <button class="btn ghost sm" type="button" style="flex:1"
+            data-copy-btn="{{ join_link }}">링크 복사</button>
+    <button class="btn ghost sm" type="button" style="flex:1"
+            data-qr="{{ join_link }}">QR 보기</button>
+  </div>
+  {% endif %}
   {% if not c.is_revoked %}
   <form method="post" action="/manage/invites/{{ c.id }}/revoke"
         onsubmit="return confirm('초대 코드 {{ c.code }} 를 무효화합니다. 이 코드로는 더 가입할 수 없습니다. 계속할까요?')">
@@ -126,11 +139,32 @@
   <button class="btn" type="submit">초대 코드 발급</button>
 </form>
 <p class="legend">
-  {% if join_url %}위원께 전할 주소 — <b>{{ join_url }}</b><br>{% endif %}
-  코드를 받은 분이 이 주소에서 이름·이메일·비밀번호를 정해 가입하면 <b>승인 대기</b>로
+  코드를 받은 분이 가입 주소에서 이름·이메일·비밀번호를 정해 가입하면 <b>승인 대기</b>로
   올라옵니다. 유효기간이 지나거나 사용 횟수를 다 쓰면 저절로 막히고, 새어 나간 것 같으면
   바로 무효화해 주세요.
 </p>
+
+<div class="sectit">후원자께 전할 주소</div>
+{% if donor_path %}
+{% set donor_link = request.base_url|string ~ donor_path[1:] %}
+<div class="card" style="cursor:default">
+  <div class="field" style="margin:0">
+    <label>{{ dong }} 전용 가입 주소</label>
+    <input value="{{ donor_link }}" readonly onclick="this.select()" style="font-size:11px">
+  </div>
+  <div class="btnrow">
+    <button class="btn ghost sm" type="button" style="flex:1"
+            data-copy-btn="{{ donor_link }}">링크 복사</button>
+    <button class="btn ghost sm" type="button" style="flex:1"
+            data-qr="{{ donor_link }}">QR 보기</button>
+  </div>
+  <p class="legend">
+    가게에 붙여 두셔도 되는 주소입니다 — 비밀이 아닙니다. QR을 인쇄해 두면 사장님이
+    휴대폰으로 바로 들어옵니다.<br>
+    들어오면 {{ dong }} 소개를 먼저 보고, 거기서 가입으로 넘어갑니다.
+  </p>
+</div>
+{% endif %}
 
 <div class="sectit">위원 명단 · {{ members | length }}명</div>
 {% for m in members %}
@@ -251,4 +285,43 @@
   연락처 없이 "운영팀에 연락해 주세요"만 뜹니다.
   {% if policy.updated_by %}<br>마지막 변경: {{ policy.updated_at | local }} · {{ policy.updated_by.name }}{% endif %}
 </p>
+<div id="qrbox" class="card" hidden style="cursor:default;text-align:center">
+  <div class="sectit" style="margin-top:0">QR</div>
+  <div id="qr" style="display:flex;justify-content:center;padding:6px 0"></div>
+  <p class="legend" id="qrurl" style="word-break:break-all"></p>
+  <button class="btn ghost sm" type="button" onclick="document.getElementById('qrbox').hidden=true">
+    닫기
+  </button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+<script>
+// QR 은 이 브라우저 안에서 그려진다. 주소를 외부 서비스에 보내지 않는다 — 위원용 링크에는
+// 초대 코드가 들어 있어서, 이미지로 받아 오는 방식은 그 코드를 남의 서버에 넘기는 셈이다.
+document.addEventListener('click', function (e) {
+  var copy = e.target.closest('[data-copy-btn]');
+  if (copy) {
+    var text = copy.getAttribute('data-copy-btn');
+    var done = function () { copy.textContent = '복사했습니다'; };
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(done, function () {});
+    }
+    return;
+  }
+  var qr = e.target.closest('[data-qr]');
+  if (!qr) return;
+  var url = qr.getAttribute('data-qr');
+  var box = document.getElementById('qrbox');
+  var slot = document.getElementById('qr');
+  slot.innerHTML = '';
+  document.getElementById('qrurl').textContent = url;
+  box.hidden = false;
+  if (window.QRCode) {
+    new QRCode(slot, { text: url, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
+  } else {
+    slot.textContent = 'QR 을 그릴 수 없습니다. 위의 주소를 복사해 보내 주세요.';
+  }
+  box.scrollIntoView({ block: 'center' });
+});
+</script>
 {% endblock %}

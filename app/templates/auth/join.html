@@ -24,8 +24,8 @@
   <form method="post" action="{{ action }}">
     <div class="field">
       <label>초대 코드</label>
-      <input name="code" placeholder="예) K7M2PQ4R" required autocapitalize="characters"
-             autocomplete="off" spellcheck="false">
+      <input name="code" value="{{ code or '' }}" placeholder="예) K7M2PQ4R" required
+             autocapitalize="characters" autocomplete="off" spellcheck="false">
     </div>
     <div class="field">
       <label>이름</label>

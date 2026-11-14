@@ -699,7 +699,10 @@ def _manage_page(request: Request, db: Session, user: User, **extra):
             if council is not None and not council.join_failures_are_stale
             else 0
         ),
-        join_url=f"/c/{council.slug}/join" if council is not None else None,
+        # 관리자가 그대로 복사해 보낼 주소 둘. 후원자용은 비밀이 아니고(가게에 붙여도
+        # 된다), 위원용은 코드가 들어가므로 단체 대화방에 올리지 말라고 화면에서 말한다.
+        donor_path=f"/c/{council.slug}" if council is not None else None,
+        join_path=f"/c/{council.slug}/join" if council is not None else None,
         max_failed_codes=invites.MAX_FAILED_CODES,
         invite_defaults={"days": DEFAULT_DAYS, "max_uses": DEFAULT_MAX_USES},
         **extra,

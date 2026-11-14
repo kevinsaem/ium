@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}이음 · {{ council.dong }}{% endblock %}
+
+{% block frame %}
+<div class="auth">
+  <div class="mark">이음 <b>·</b> 理音</div>
+  <p class="lede">
+    {{ council.label }}<br>지역사회보장협의체 나눔 매칭
+  </p>
+
+  {% if error %}<div class="flash warn">{{ error }}</div>{% endif %}
+
+  <div class="banner">
+    <div class="seal ic-svg">{{ icon('heart') }}</div>
+    <div>
+      <b>{{ council.dong }} 나눔가게로 함께해 주세요</b>
+      <p>가게에 남는 것이 {{ council.dong }} 한 가정에 닿습니다.</p>
+    </div>
+  </div>
+
+  <div class="sectit">{{ council.dong }}에서 어떻게 이어지나</div>
+  <div class="card" style="cursor:default">
+    <div class="row">
+      <div class="thumb ic-svg">{{ icon('store') }}</div>
+      <div class="meta">
+        <h3>가게에서 할 수 있는 것을 올립니다</h3>
+        <div class="sub">남는 반찬, 안 쓰는 물건, 할 수 있는 수리 — 무엇이든 됩니다.</div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="cursor:default">
+    <div class="row">
+      <div class="thumb ic-svg">{{ icon('compass') }}</div>
+      <div class="meta">
+        <h3>{{ council.dong }} 위원이 직접 전달합니다</h3>
+        <div class="sub">받는 분을 찾아가는 것도, 전달하는 것도 위원이 합니다.</div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="cursor:default">
+    <div class="row">
+      <div class="thumb ic-svg">{{ icon('check') }}</div>
+      <div class="meta">
+        <h3>전달되면 알려 드립니다</h3>
+        <div class="sub">어느 가정인지는 알려 드리지 않습니다 — 전달됐다는 것만.</div>
+      </div>
+    </div>
+  </div>
+
+  <a class="btn" href="/c/{{ council.slug }}/signup" style="margin-top:14px">
+    후원자 가입하기
+  </a>
+  <a class="btn ghost" href="/login" style="margin-top:8px">이미 가입하셨나요? 로그인</a>
+
+  <p class="legend" style="margin-top:14px">
+    이름과 휴대폰 번호만 받습니다. 가게 이름과 주소는 적으셔도 되고 안 적으셔도 됩니다 —
+    적어 주시면 위원이 가게를 찾아오기 쉽습니다.<br>
+    <b>도움받는 분의 정보는 후원자에게 공개되지 않습니다.</b>
+  </p>
+
+  {% if team_contact %}
+  <p class="legend">문의 — <b>{{ team_contact }}</b></p>
+  {% endif %}
+</div>
+{% endblock %}

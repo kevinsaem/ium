@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}이음 · 理音{% endblock %}
+
+{% block frame %}
+<div class="auth">
+  <div class="mark">이음 <b>·</b> 理音</div>
+  <p class="lede">
+    {% if dong %}{{ dong }} {% endif %}지역사회보장협의체 나눔 매칭<br>
+    도움이 필요한 이웃이 스스로 손을 들지 않아도.
+  </p>
+
+  {% if error %}<div class="flash warn">{{ error }}</div>{% endif %}
+
+  <div class="banner">
+    <div class="seal ic-svg">{{ icon('heart') }}</div>
+    <div>
+      <b>가게에 남는 것이 동네 한 가정에 닿습니다</b>
+      <p>후원자가 내놓은 나눔을, 동네를 아는 위원이 필요한 가정에 연결합니다.</p>
+    </div>
+  </div>
+
+  <div class="sectit">어떻게 이어지나</div>
+  <div class="card" style="cursor:default">
+    <div class="row">
+      <div class="thumb ic-svg">{{ icon('store') }}</div>
+      <div class="meta">
+        <h3>후원자가 내놓습니다</h3>
+        <div class="sub">남는 반찬, 안 쓰는 물건, 할 수 있는 수리 — 가게에서 할 수 있는 것으로.</div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="cursor:default">
+    <div class="row">
+      <div class="thumb ic-svg">{{ icon('compass') }}</div>
+      <div class="meta">
+        <h3>위원이 찾아 연결합니다</h3>
+        <div class="sub">동네를 아는 위원이 어느 가정에 필요한지 알고 직접 전달합니다.</div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="cursor:default">
+    <div class="row">
+      <div class="thumb ic-svg">{{ icon('shield') }}</div>
+      <div class="meta">
+        <h3>협의체가 보증합니다</h3>
+        <div class="sub">아무나 받아 가는 것이 아니라, 협의체가 승인한 후원자와 위원 사이에서만.</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="legend" style="margin-top:14px">
+    <b>도움받는 분은 이 앱에 등장하지 않습니다.</b> 이름과 연락처는 담당 위원 한 사람만
+    볼 수 있고, 후원자에게도 다른 위원에게도 보이지 않습니다. 열어 본 기록은 사유와 함께
+    남습니다.
+  </p>
+
+  <div class="divline" style="margin:18px 0"></div>
+
+  <a class="btn" href="{{ signup_url }}">후원자로 시작하기</a>
+  <a class="btn ghost" href="/login" style="margin-top:8px">이미 가입하셨나요? 로그인</a>
+
+  <p class="legend" style="margin-top:14px">
+    위촉받은 위원이신가요? 협의체 관리자에게 받은 <b>초대 주소</b>로 가입해 주세요.
+  </p>
+
+  {% if team_contact %}
+  <p class="legend">문의 — <b>{{ team_contact }}</b></p>
+  {% endif %}
+</div>
+{% endblock %}

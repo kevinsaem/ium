@@ -20,7 +20,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import accounts, devices
+from app import accounts, devices, invites
 from app.config import settings
 from app.db import get_db
 from app import deps
@@ -99,12 +99,39 @@ def root(
     db: Session = Depends(get_db),
     user: User | None = Depends(current_user_optional),
 ):
+    """첫 화면.
+
+    전에는 로그인으로 바로 보냈다. 로그인 화면은 이미 아는 사람을 위한 자리고, 이 주소로
+    처음 들어오는 사람은 "이음이 뭔가" 를 모른다 — 카톡으로 받은 링크를 눌러 본 가게
+    사장님이 로그인 칸만 보고 닫는다.
+
+    협의체가 하나뿐이면 그 동 이름으로 말한다. 여러 개면 동 이름을 적지 않고, 가입은
+    협의체 전용 주소(/c/<slug>)로 들어온 사람만 할 수 있게 둔다 — 어느 동 후원자인지
+    모르는 채로 가입시킬 수는 없다.
+    """
     if user is None:
-        return RedirectResponse("/login", status_code=303)
+        council = _sole_council(db)
+        return _page(
+            request,
+            db,
+            "auth/landing.html",
+            council=council,
+            dong=council.dong if council is not None else None,
+            signup_url=f"/c/{council.slug}/signup" if council is not None else "/login",
+        )
     if user.role is Role.MEMBER and not user.is_approved:
         # 승인 대기 위원을 역할 홈으로 보내면 그 화면이 403 을 내고, 403 은 홈으로
         # 되돌리고, 홈은 다시 역할 홈으로 보낸다. 여기서 끊는다.
         return _page(request, db, "auth/pending.html", pending_user=user)
+    if user.role is not Role.SUPER and user.council_id is None:
+        # 소속 없는 계정도 같은 고리에 걸린다. 역할 홈의 조회가 '소속 협의체가 없는
+        # 계정입니다' 로 막고(app/tenancy.py 의 scoped), 그 안내가 홈으로 되돌리고,
+        # 홈이 다시 역할 홈으로 보낸다.
+        #
+        # 앱에서 소속 없는 계정이 생기는 길은 없다 — 위원 발급도 후원자 가입도 협의체를
+        # 찍는다. 그래도 막아 두는 이유는, 손으로 넣은 계정 하나가 '화면이 안 열린다'
+        # 가 아니라 '브라우저가 멈춘다' 로 나타나면 원인을 찾는 데 한참 걸리기 때문이다.
+        return _page(request, db, "auth/no_council.html", stranded_user=user)
     return RedirectResponse(HOME[user.role], status_code=303)
 
 
@@ -148,9 +175,20 @@ def _deny(request: Request, message: str):
     return RedirectResponse("/login", status_code=303)
 
 
-def _start_session(request: Request, user: User):
+def _start_session(request: Request, user: User, flash: str | None = None):
+    """세션을 새로 열고 역할에 맞는 화면으로 보낸다.
+
+    들어올 때 세션을 비우는 것은 세션 고정 공격을 막기 위해서다 — 로그인 전에 심어진
+    세션을 그대로 물려받으면, 그 세션을 심은 사람이 로그인된 세션을 갖게 된다.
+
+    그래서 안내 문구는 인자로 받는다. 부르는 쪽에서 session["flash"] 에 넣어 두면 이
+    clear() 에 지워진다. 실제로 그랬다 — 가입하신 분에게 "가입했습니다" 가 한 번도 뜨지
+    않았고, 아무 안내 없이 낯선 화면이 떴다.
+    """
     request.session.clear()
     request.session["uid"] = user.id
+    if flash:
+        request.session["flash"] = flash
     if user.must_change_password:
         return RedirectResponse("/account/password", status_code=303)
     if user.role is Role.MEMBER and not user.is_approved:
@@ -249,8 +287,14 @@ def _do_signup(request: Request, db: Session, council, back: str, **fields):
         request.session["flash"] = str(exc)
         return RedirectResponse(back, status_code=303)
 
-    request.session["flash"] = f"{donor.name}님, 가입했습니다. 나눔글을 올려 보세요."
-    return _remember_device(request, db, donor, _start_session(request, donor))
+    return _remember_device(
+        request,
+        db,
+        donor,
+        _start_session(
+            request, donor, f"{donor.name}님, 가입했습니다. 나눔글을 올려 보세요."
+        ),
+    )
 
 
 @router.get("/signup")
@@ -275,6 +319,34 @@ def signup_form(
     except tenancy.CouncilNotFound:
         return _signup_page(request, db, None)
     return RedirectResponse(f"/c/{council.slug}/signup", status_code=303)
+
+
+@router.get("/c/{slug}")
+def council_landing(
+    slug: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(current_user_optional),
+):
+    """협의체 전용 주소 — 관리자가 후원자에게 전하는 바로 그 주소다.
+
+    가입 화면(/c/<slug>/signup)으로 바로 보내지 않는다. 링크를 받은 분이 먼저 보는 것이
+    입력 칸이면, 무엇에 가입하는지 모르는 채로 전화번호를 적게 된다. 소개를 한 화면 두고
+    거기서 가입으로 넘어가게 한다.
+    """
+    from app import tenancy
+
+    if user is not None:
+        return RedirectResponse(HOME[user.role], status_code=303)
+
+    council = tenancy.by_slug(db, slug)
+    return _page(
+        request,
+        db,
+        "auth/council_landing.html",
+        council=council,
+        dong=council.dong,
+    )
 
 
 @router.get("/c/{slug}/signup")
@@ -342,6 +414,7 @@ def council_signup(
 def council_join_form(
     slug: str,
     request: Request,
+    code: str = "",
     db: Session = Depends(get_db),
     user: User | None = Depends(current_user_optional),
 ):
@@ -365,6 +438,10 @@ def council_join_form(
         action=f"/c/{council.slug}/join",
         locked=council.join_is_locked,
         wait_label=council.join_wait_label,
+        # 관리자가 보내는 링크에 코드가 들어 있으면 받은 분이 손으로 적지 않는다.
+        # 오타로 실패하는 일이 사라지니 대기에 걸릴 일도 함께 줄어든다.
+        # 칸은 그대로 두어, 링크 없이 코드만 받은 분도 들어올 수 있게 한다.
+        code=invites.normalize(code),
     )
 
 
@@ -392,10 +469,11 @@ def council_join(
         request.session["flash"] = str(exc)
         return RedirectResponse(back, status_code=303)
 
-    request.session["flash"] = (
-        f"{member.name}님, 가입 신청이 접수되었습니다. 관리자 승인 후 이용하실 수 있습니다."
+    return _start_session(
+        request,
+        member,
+        f"{member.name}님, 가입 신청이 접수되었습니다. 관리자 승인 후 이용하실 수 있습니다.",
     )
-    return _start_session(request, member)
 
 
 @router.get("/logout")
